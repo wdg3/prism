@@ -17,7 +17,6 @@ class DashboardBody:
 
 class PingMetrics(Construct):
     regionDashboard: CloudwatchDashboard
-    targetDashboard: CloudwatchDashboard
     
     def __init__(self, scope: Construct, name: str, suffix: str, environment: str, regions: list[str], targets: list[PingTarget]) -> None:
         super().__init__(scope, name + suffix)
