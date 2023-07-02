@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct OrderBook {
     pub bid: i64,
     pub bid_vol: u64,
@@ -16,7 +17,7 @@ impl OrderBook {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Spread {
     pub raw: i64,
     pub percentage: f64,

@@ -7,32 +7,12 @@ fn main() {
     const NUM_BOOKS: usize = 4;
     const NUM_PAIRS: usize = NUM_BOOKS * NUM_BOOKS;
 
-    let coinbase = OrderBook {
-        bid: 12,
-        bid_vol: 10,
-        ask: 14,
-        ask_vol: 10,
-    };
-    let gemini = OrderBook {
-        bid: 8,
-        bid_vol: 10,
-        ask: 11,
-        ask_vol: 10,
-    };
-    let kraken = OrderBook {
-        bid: 13,
-        bid_vol: 10,
-        ask: 14,
-        ask_vol: 10,
-    };
-    let binance = OrderBook {
-        bid: 8,
-        bid_vol: 10,
-        ask: 12,
-        ask_vol: 10,
-    };
+    let coinbase = OrderBook::default();
+    let gemini = OrderBook::default();
+    let kraken = OrderBook::default();
+    let binance = OrderBook::default();
 
-    let spreads = [(Spread {raw: 0, percentage: 0.0,}); NUM_PAIRS];
+    let spreads = [Spread::default(); NUM_PAIRS];
 
     let mut multi_book = MultiBook::<NUM_BOOKS, NUM_PAIRS> {
         books: [coinbase, gemini, kraken, binance],
@@ -46,6 +26,6 @@ fn main() {
     }
 
     for spread in multi_book.spreads {
-        //println!("{:?}", spread);
+        println!("{:?}", spread);
     }
 }
