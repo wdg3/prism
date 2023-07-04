@@ -1,14 +1,33 @@
+use futures_util::{StreamExt, SinkExt};
 use tokio::net::TcpStream;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{ MaybeTlsStream, WebSocketStream, connect_async};
+use tokio_tungstenite::tungstenite::protocol::Message;
 
 pub struct WebSocketClient {
-    pub address: String,
+    ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
 impl WebSocketClient {
-    pub async fn init(&self) -> WebSocketStream<MaybeTlsStream<TcpStream>> {
-        let (ws_stream, _) = connect_async(&self.address).await.expect("Failed to connect");
+    pub async fn new(address: String) -> Self {
+        let result = connect_async(address).await;
+        match result {
+            Ok((ws_stream, _)) => return WebSocketClient {ws_stream},
+            Err(result) => {
+                println!("Error connecting: {:?}", result.to_string());
+                panic!();
+            }
+        };
+    }
 
-        return ws_stream
+    pub async fn send(&mut self, msg: Message) {
+        if let Err(result) = &self.ws_stream.send(msg).await {
+            println!("Error sending message: {:?}", result);
+        }
+    }
+
+    pub async fn receive(&mut self) {
+        while let Some(msg) = &self.ws_stream.next().await {
+            println!("{:?}", msg);
+        }
     }
 }
