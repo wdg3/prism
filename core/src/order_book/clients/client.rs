@@ -1,5 +1,6 @@
 use futures_util::{StreamExt, SinkExt};
 use tokio::net::TcpStream;
+use tokio_tungstenite::tungstenite::Error;
 use tokio_tungstenite::{ MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
@@ -25,9 +26,7 @@ impl WebSocketClient {
         }
     }
 
-    pub async fn receive(&mut self) {
-        while let Some(msg) = &self.ws_stream.next().await {
-            println!("{:?}", msg);
-        }
+    pub async fn receive(&mut self) -> Option<Result<Message, Error>> {
+        return self.ws_stream.next().await;
     }
 }
