@@ -5,6 +5,8 @@ use order_book::order_book::MultiBook;
 use order_book::order_book::Spread;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+use crate::order_book::clients::coinbase::coinbase_client::CoinbaseReceiveClient;
+
 #[tokio::main]
 async fn main() {
     const NUM_BOOKS: usize = 4;
@@ -29,13 +31,11 @@ async fn main() {
     }
 
     let coinbase_task = tokio::spawn(async move {
-        let mut coinbase_client = WebSocketClient::new("wss://ws-feed.exchange.coinbase.com".to_string()).await;
-        let coinbase_sub: String = "{\"type\": \"subscribe\",\"product_ids\": [\"ETH-USD\"],\"channels\": [\"ticker\"]}".to_string();
-        coinbase_client.send(Message::Text(coinbase_sub)).await;
-        coinbase_client.receive().await;
+        let mut coinbase_client = CoinbaseReceiveClient::new().await;
+        coinbase_client.init().await;
     });
 
-    let gemini_task = tokio::spawn(async move {
+    /*let gemini_task = tokio::spawn(async move {
         let mut gemini_client = WebSocketClient::new("wss://api.gemini.com/v1/marketdata/ETHUSD".to_string()).await;
         gemini_client.receive().await;
     });
@@ -57,5 +57,6 @@ async fn main() {
     coinbase_task.await.unwrap();
     gemini_task.await.unwrap();
     kraken_task.await.unwrap();
-    binance_task.await.unwrap();
+    binance_task.await.unwrap();*/
+    coinbase_task.await.unwrap();
 }
