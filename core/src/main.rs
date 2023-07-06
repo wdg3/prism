@@ -1,9 +1,8 @@
 mod order_book;
-use order_book::clients::client::WebSocketClient;
 use order_book::order_book::OrderBook;
 use order_book::order_book::MultiBook;
 use order_book::order_book::Spread;
-use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio::runtime::Builder;
 
 use crate::order_book::clients::coinbase::coinbase_client::CoinbaseReceiveClient;
 
@@ -30,7 +29,15 @@ async fn main() {
         }
     }
 
-    let coinbase_task = tokio::spawn(async move {
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(4)
+        .thread_name("prism")
+        .thread_stack_size(128 * 1024 * 1024)
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let coinbase_task = runtime.spawn(async move {
         let mut coinbase_client = CoinbaseReceiveClient::new().await;
         coinbase_client.init().await;
     });

@@ -9,5 +9,6 @@ tokio = { version = "1", features = ["full"] }
 futures-util = "*"
 futures-channel = "*"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde-json-core = "0.5.0"
+heapless = { version = "*", features = ["serde"] }
 chrono = "0.4"
