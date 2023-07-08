@@ -9,8 +9,8 @@ pub struct CoinbaseReceiveClient {
     client: WebSocketClient,
 }
 
-impl CoinbaseReceiveClient {
-    pub async fn new() -> Self {
+impl<'a> CoinbaseReceiveClient {
+    pub async fn new() -> CoinbaseReceiveClient {
         return CoinbaseReceiveClient {
             adapter: CoinbaseAdapter::new().await,
             client: WebSocketClient::new("wss://ws-feed.exchange.coinbase.com".to_string()).await
@@ -23,7 +23,7 @@ impl CoinbaseReceiveClient {
         self.receive().await;
     }
 
-    async fn receive<'a>(&mut self) {
+    async fn receive(&mut self) {
         let mut count: usize = 0;
         let mut total: usize = 0;
         let mut counts: bool = false;
@@ -44,11 +44,6 @@ impl CoinbaseReceiveClient {
                         "l2update" => {
                             counts = true;
                             self.handle_update(&msg.to_text().unwrap());
-                            //let now = chrono::Utc::now();
-                            //let then = chrono::DateTime::from_str(&update.time).unwrap();
-                            //let elapsed = now - then;
-                            
-                            //println!("Sent at {:?} to deserialized at {:?} - total time: {:?}", update.time, now, elapsed);
                         },
                         other => println!("Unknown message type {:?}: {:?}", other, msg),
                     }
@@ -60,8 +55,6 @@ impl CoinbaseReceiveClient {
                 count = count + 1;
                 total = total + duration.as_micros() as usize;
                 let avg: f64 = (total as f64) / (count as f64);
-                println!("Update parsed in {:?}", duration);
-                println!("Average parse time: {:?} microseconds", avg);
             }
         }
     }
@@ -69,16 +62,20 @@ impl CoinbaseReceiveClient {
     fn handle_snapshot(&mut self, snapshot: &str) {
         let result = serde_json_core::from_str::<Snapshot>(snapshot);
         match result {
-            Ok((snapshot, _)) => println!("Snapshot: {:?} bids, {:?} asks", snapshot.bids.len(), snapshot.asks.len()),
+            Ok((snapshot, _)) => {
+                self.adapter.init_order_book(snapshot);
+            },
             Err(err) => println!("Error parsing: {:?} for {:?}", err, snapshot),
         }        
     }
 
-    fn handle_update<'a>(&mut self, update: &'a str) {
+    fn handle_update(&mut self, update: & str) {
         let result = serde_json_core::from_str::<Update>(update);
         match result {
+            Ok((update, _)) => {
+                self.adapter.update(update);
+            }
             Err(err) => println!("Error parsing: {:?} for {:?}", err, update),
-            _ => (),
         }
     }
 }

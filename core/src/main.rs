@@ -11,36 +11,37 @@ async fn main() {
     const NUM_BOOKS: usize = 4;
     const NUM_PAIRS: usize = NUM_BOOKS * NUM_BOOKS;
 
-    let coinbase = OrderBook::default();
-    let gemini = OrderBook::default();
-    let kraken = OrderBook::default();
-    let binance = OrderBook::default();
+    //let coinbase = OrderBook::default();
+    //let gemini = OrderBook::default();
+    //let kraken = OrderBook::default();
+    //let binance = OrderBook::default();
 
-    let spreads = [Spread::default(); NUM_PAIRS];
+    //let spreads = [Spread::default(); NUM_PAIRS];
 
-    let mut multi_book = MultiBook::<NUM_BOOKS, NUM_PAIRS> {
-        books: [coinbase, gemini, kraken, binance],
-        spreads: spreads,
-    };
+    //let mut multi_book = MultiBook::<NUM_BOOKS, NUM_PAIRS> {
+    //    books: [coinbase, gemini, kraken, binance],
+    //    spreads: spreads,
+    //};
 
-    for i in 0..NUM_BOOKS {
-        for j in 0..NUM_BOOKS {
-            multi_book.update_spread(i, j);
-        }
-    }
+    //for i in 0..NUM_BOOKS {
+    //    for j in 0..NUM_BOOKS {
+    //        multi_book.update_spread(i, j);
+    //    }
+    //}
+   let runtime = Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("prism")
+            .thread_stack_size(64 * 1024 * 1024)
+            .enable_all()
+            .build()
+            .unwrap();
 
-    let runtime = Builder::new_multi_thread()
-        .worker_threads(4)
-        .thread_name("prism")
-        .thread_stack_size(128 * 1024 * 1024)
-        .enable_all()
-        .build()
-        .unwrap();
+        let coinbase_task = runtime.spawn(async {
+            let mut coinbase_client = CoinbaseReceiveClient::new().await;
+            coinbase_client.init().await;
+        });
 
-    let coinbase_task = runtime.spawn(async move {
-        let mut coinbase_client = CoinbaseReceiveClient::new().await;
-        coinbase_client.init().await;
-    });
+        coinbase_task.await.unwrap();
 
     /*let gemini_task = tokio::spawn(async move {
         let mut gemini_client = WebSocketClient::new("wss://api.gemini.com/v1/marketdata/ETHUSD".to_string()).await;
@@ -65,5 +66,4 @@ async fn main() {
     gemini_task.await.unwrap();
     kraken_task.await.unwrap();
     binance_task.await.unwrap();*/
-    coinbase_task.await.unwrap();
 }

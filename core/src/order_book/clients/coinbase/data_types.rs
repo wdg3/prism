@@ -8,8 +8,8 @@ pub struct Message<'a> {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Snapshot {
-    pub bids: heapless::Vec<PriceLevel, 100000>,
-    pub asks: heapless::Vec<PriceLevel, 100000>,
+    pub bids: heapless::Vec<PriceLevel, 10000>,
+    pub asks: heapless::Vec<PriceLevel, 10000>,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -19,16 +19,16 @@ pub struct Update<'a> {
     pub changes: heapless::Vec<Change, 32>
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct PriceLevel {
-    level: usize,
-    amount: f64,
+    pub level: usize,
+    pub amount: f64,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Change {
-    side: Side,
-    price_level: PriceLevel,
+    pub side: Side,
+    pub price_level: PriceLevel,
 }
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "lowercase")] 
