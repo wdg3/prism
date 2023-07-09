@@ -10,30 +10,13 @@ use super::clients::coinbase::data_types::{PriceLevel, Snapshot, Update, Side};
 pub struct OrderBook {
     bids: Box<heapless::BinaryHeap<RefCell<PriceLevel>, Max, 16384>>,
     asks: Box<heapless::BinaryHeap<RefCell<PriceLevel>, Min, 16384>>,
-    pub bid_lookup: Box<heapless::FnvIndexMap<usize, RefCell<PriceLevel>, 16384>>,
-    pub ask_lookup: Box<heapless::FnvIndexMap<usize, RefCell<PriceLevel>, 16384>>,
+    pub bid_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
+    pub ask_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
     best_bid: Option<RefCell<PriceLevel>>,
     best_ask: Option<RefCell<PriceLevel>>,
+    average_update: f64,
+    num_updates: usize,
 }
-
-#[derive(Debug)]
-struct SafePriceLevel<'a>(&'a RwLock<PriceLevel>);
-impl<'a> Ord for SafePriceLevel<'a> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.read().unwrap().level.cmp(&other.0.read().unwrap().level)
-    }
-}
-impl<'a> PartialOrd for SafePriceLevel<'a> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.read().unwrap().level.partial_cmp(&other.0.read().unwrap().level)
-    }
-}
-impl<'a> PartialEq for SafePriceLevel<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.read().unwrap().level == other.0.read().unwrap().level && self.0.read().unwrap().amount == other.0.read().unwrap().amount
-    }
-}
-impl<'a> Eq for SafePriceLevel<'a> {}
 
 impl Eq for PriceLevel {}
 
@@ -58,6 +41,8 @@ impl<'a> OrderBook {
             ask_lookup: Box::new(heapless::FnvIndexMap::new()),
             best_bid: Option::None,
             best_ask: Option::None,
+            average_update: 0.0,
+            num_updates: 0,
         }
     }
     pub fn init(&mut self, snapshot: Snapshot) {
@@ -66,7 +51,7 @@ impl<'a> OrderBook {
             let _ = self.bids.push(RefCell::clone(&bid_cell));
             match &self.best_bid {
                 Option::None => {
-                    self.best_bid = Some(RefCell::clone(&bid_cell));
+                    self.best_bid = Some(bid_cell.clone());
                 }
                 Some(p) => {
                     if p.borrow().level <= bid.level {
@@ -74,7 +59,7 @@ impl<'a> OrderBook {
                     }
                 }
             }
-            let _ = self.bid_lookup.insert(bid.level, bid_cell);
+            let _ = self.bid_lookup.insert(bid.level, bid);
         }
         for ask in snapshot.asks {
             let ask_cell = RefCell::new(ask);
@@ -89,7 +74,7 @@ impl<'a> OrderBook {
                     }
                 }
             }
-            let _ = self.ask_lookup.insert(ask.level, ask_cell);
+            let _ = self.ask_lookup.insert(ask.level, ask);
         }
         println!("Best bid: {:?}\nBest ask: {:?}", self.best_bid.as_ref().unwrap().borrow(), self.best_ask.as_ref().unwrap().borrow());
     }
@@ -111,27 +96,28 @@ impl<'a> OrderBook {
             }
         }
         let duration = start.elapsed();
-        println!("Order book updated in {:?}", duration);
-        println!("Best bid: {:?}\nBest ask: {:?}", self.best_bid.as_ref().unwrap().borrow(), self.best_ask.as_ref().unwrap().borrow());
+        self.num_updates += 1;
+        self.average_update = self.average_update + ((duration.as_nanos() as f64) / (self.num_updates as f64 * 1000.0));
+        if duration.as_micros() > 100 {
+            println!("Order book updated in {:?}", duration);
+            println!("Average update time: {:?} microseconds", self.average_update);
+            println!("Best bid: {:?}\nBest ask: {:?}", self.best_bid.as_ref().unwrap().borrow(), self.best_ask.as_ref().unwrap().borrow());
+        }
         self.validate();
 
     }
     fn update_lookup(
-        lookup: &mut Box<heapless::FnvIndexMap<usize, RefCell<PriceLevel>, 16384>>,
+        lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
         level: usize,
         amount: f64) {
         if amount.to_bits() == (0.0 as f64).to_bits() {
             lookup.remove(&level);
-        } else if lookup.contains_key(&level) {
-            lookup.get(&level).unwrap().borrow_mut().amount = amount;
-            assert_eq!(amount, lookup.get(&level).unwrap().borrow().amount);
         } else {
-            let _ = lookup.insert(level, RefCell::new(PriceLevel {level: level, amount: amount}));
-            assert_eq!(amount, lookup.get(&level).unwrap().borrow().amount);
+            let _ = lookup.insert(level, PriceLevel {level: level, amount: amount});
         }
     }
     fn update_heap<K>(
-        lookup: &Box<heapless::FnvIndexMap<usize, RefCell<PriceLevel>, 16384>>,
+        lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
         heap: &mut Box<heapless::BinaryHeap<RefCell<PriceLevel>, K, 16384>>,
         level: usize,
         amount: f64)
@@ -140,10 +126,10 @@ impl<'a> OrderBook {
             let _ = heap.pop();
         }
         if !(amount.to_bits() == (0.0 as f64).to_bits()) {
-            let _ = heap.push(RefCell::clone(lookup.get(&level).unwrap())).unwrap();
+            let _ = heap.push(RefCell::new(*lookup.get(&level).unwrap())).unwrap();
         }
         let top_level = heap.peek().unwrap().borrow().level;
-        heap.peek().unwrap().borrow_mut().amount = lookup.get(&top_level).unwrap().borrow().amount;
+        heap.peek().unwrap().borrow_mut().amount = lookup.get(&top_level).unwrap().amount;
     }
     fn update_best<K>(
         heap: &Box<heapless::BinaryHeap<RefCell<PriceLevel>, K, 16384>>,
@@ -157,8 +143,8 @@ impl<'a> OrderBook {
         let best_ask = self.best_ask.as_ref().unwrap().borrow();
         let heap_bid = self.bids.peek().unwrap().borrow();
         let heap_ask = self.asks.peek().unwrap().borrow();
-        let bid = self.bid_lookup.get(&best_bid.level).unwrap().borrow();
-        let ask = self.ask_lookup.get(&best_ask.level).unwrap().borrow();
+        let bid = self.bid_lookup.get(&best_bid.level).unwrap();
+        let ask = self.ask_lookup.get(&best_ask.level).unwrap();
 
         assert!(best_bid.level < best_ask.level);
         assert_eq!(best_bid.level, heap_bid.level);
