@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut;
+
 use heapless::{binary_heap::{Max, Min}};
 use tokio::{time::Instant};
 
@@ -148,8 +150,10 @@ impl<'a> OrderBook {
         heap: &Box<heapless::BinaryHeap<PriceLevel, K, 16384>>,
         best: &mut Option<PriceLevel>)
     where K: heapless::binary_heap::Kind {
-        best.as_mut().unwrap().amount = heap.peek().unwrap().amount;
-        best.as_mut().unwrap().level = heap.peek().unwrap().level;
+        *best = Some(*heap.peek().unwrap());
+        //best.as_mut().unwrap().amount = heap.peek().unwrap().amount;
+        //best.as_mut().unwrap().level = heap.peek().unwrap().level;
+        //best.as_mut().unwrap().sequence = heap.peek().unwrap().sequence;
     }
     fn heap_from_lookup<K>(
         lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
