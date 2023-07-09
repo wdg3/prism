@@ -23,6 +23,7 @@ pub struct Update<'a> {
 pub struct PriceLevel {
     pub level: usize,
     pub amount: f64,
+    pub sequence: i64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -64,6 +65,7 @@ impl<'de> Visitor<'de> for PriceLevelVisitor {
         Ok(PriceLevel {
             level: level,
             amount: amount,
+            sequence: 0,
             })
     }
 }
@@ -98,6 +100,7 @@ impl<'de> Visitor<'de> for ChangeVisitor {
             price_level: PriceLevel {
                 level: level,
                 amount: amount,
+                sequence: 0,
             },
         })
     }

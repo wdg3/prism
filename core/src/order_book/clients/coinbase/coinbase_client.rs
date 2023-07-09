@@ -26,7 +26,6 @@ impl<'a> CoinbaseReceiveClient {
     async fn receive(&mut self) {
         let mut count: usize = 0;
         let mut total: usize = 0;
-        let mut counts: bool = false;
         while let Some(msg) = self.client.receive().await {
             let start = Instant::now();
             match msg {
@@ -35,26 +34,24 @@ impl<'a> CoinbaseReceiveClient {
                     match message.msg_type {
                         "subscriptions" => {
                             println!("Received subscription confirmation");
-                            counts = false;
                         },
                         "snapshot" => {
-                            counts = false;
                             self.handle_snapshot(&msg.to_text().unwrap())
                         },
                         "l2update" => {
-                            counts = true;
+                            let duration = start.elapsed();
+                            count = count + 1;
+                            total = total + duration.as_micros() as usize;
+                            let avg: f64 = (total as f64) / (count as f64);
+                            println!("Message parsed in {:?}", duration);
+                            println!("Average message parse time: {:?} microseconds", avg);
                             self.handle_update(&msg.to_text().unwrap());
+
                         },
                         other => println!("Unknown message type {:?}: {:?}", other, msg),
                     }
                 },
                 Err(err) => println!("{:?}", err)
-            }
-            if counts {
-                let duration = start.elapsed();
-                count = count + 1;
-                total = total + duration.as_micros() as usize;
-                let avg: f64 = (total as f64) / (count as f64);
             }
         }
     }
