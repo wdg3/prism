@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use tokio::time::Instant;
 
 use crate::order_book::clients::client::WebSocketClient;
@@ -41,12 +43,11 @@ impl<'a> CoinbaseReceiveClient {
                         "l2update" => {
                             let duration = start.elapsed();
                             count = count + 1;
-                            total = total + duration.as_micros() as usize;
+                            total = total + duration.as_nanos() as usize;
                             let avg: f64 = (total as f64) / (count as f64);
                             println!("Message parsed in {:?}", duration);
-                            println!("Average message parse time: {:?} microseconds", avg);
+                            println!("Average message parse time: {:?}", Duration::new(0, avg as u32));
                             self.handle_update(&msg.to_text().unwrap());
-
                         },
                         other => println!("Unknown message type {:?}: {:?}", other, msg),
                     }

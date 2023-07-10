@@ -19,7 +19,7 @@ pub struct Update<'a> {
     pub changes: heapless::Vec<Change, 32>
 }
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Default, Debug, PartialEq)]
 pub struct PriceLevel {
     pub level: usize,
     pub amount: f64,

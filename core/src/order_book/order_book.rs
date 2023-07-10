@@ -1,18 +1,17 @@
-use std::borrow::BorrowMut;
-
-use heapless::{binary_heap::{Max, Min}};
+use std::time::Duration;
+use heapless::{binary_heap::{Max, Min}, Vec};
 use tokio::{time::Instant};
 
 use super::clients::coinbase::data_types::{PriceLevel, Snapshot, Update, Side};
 
 #[derive(Default)]
 pub struct OrderBook {
-    bids: Box<heapless::BinaryHeap<PriceLevel, Max, 16384>>,
-    asks: Box<heapless::BinaryHeap<PriceLevel, Min, 16384>>,
+    bids: Box<heapless::BinaryHeap<usize, Max, 16384>>,
+    asks: Box<heapless::BinaryHeap<usize, Min, 16384>>,
     pub bid_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
     pub ask_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-    best_bid: Option<PriceLevel>,
-    best_ask: Option<PriceLevel>,
+    best_bid: Option<usize>,
+    best_ask: Option<usize>,
     average_update: f64,
     num_updates: usize,
     count: i64,
@@ -40,7 +39,7 @@ impl Ord for PriceLevel {
     }
 }
 
-impl<'a> OrderBook {
+impl OrderBook {
     pub fn new() -> Self {
         return OrderBook {
             bids: Box::new(heapless::BinaryHeap::new()),
@@ -55,36 +54,23 @@ impl<'a> OrderBook {
         }
     }
     pub fn init(&mut self, snapshot: Snapshot) {
-        for bid in snapshot.bids {
-            let _ = self.bids.push(bid);
-            match self.best_bid {
-                Option::None => {
-                    self.best_bid = Some(bid);
-                }
-                Some(p) => {
-                    if p.level <= bid.level {
-                        self.best_bid = Some(bid);
-                    }
-                }
-            }
-            let _ = self.bid_lookup.insert(bid.level, bid);
-        }
-        for ask in snapshot.asks {
-            let _ = self.asks.push(ask);
-            match self.best_ask {
-                Option::None => {
-                    self.best_ask = Some(ask);
-                }
-                Some(p) => {
-                    if p.level >= ask.level {
-                        self.best_ask = Some(ask);
-                    }
-                }
-            }
-            let _ = self.ask_lookup.insert(ask.level, ask);
-        }
+        OrderBook::init_side(&mut self.bid_lookup, &mut self.bids, &snapshot.bids);
+        OrderBook::init_side(&mut self.ask_lookup, &mut self.asks, &snapshot.asks);
+        OrderBook::update_best::<Max>(&self.bids, &mut self.best_bid);
+        OrderBook::update_best::<Min>(&self.asks, &mut self.best_ask);
         println!("Best bid: {:?}\nBest ask: {:?}", self.best_bid.as_ref().unwrap(), self.best_ask.as_ref().unwrap());
     }
+    fn init_side<K>(
+        lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
+        heap: &mut Box<heapless::BinaryHeap<usize, K, 16384>>,
+        snapshot: &Vec<PriceLevel, 10000>)
+    where K: heapless::binary_heap::Kind {
+            for price_level in snapshot {
+                let level: usize = price_level.level;
+                let _ = lookup.insert(level, price_level.clone()).unwrap();
+                let _ = heap.push(level).unwrap();
+            }
+        }
     pub fn update(&mut self, update: Update) {
         let start = Instant::now();
         self.count = self.count + 1;
@@ -103,22 +89,7 @@ impl<'a> OrderBook {
                 },
             }
         }
-        let duration = start.elapsed();
-        self.num_updates += 1;
-        self.average_update = self.average_update + ((duration.as_nanos() as f64) / (self.num_updates as f64 * 1000.0));
-        println!("Order book updated in {:?}", duration);
-        println!("Average update time: {:?} microseconds", self.average_update);
-        println!("Best bid: {:?}\nBest ask: {:?}", self.best_bid.as_ref().unwrap(), self.best_ask.as_ref().unwrap());
-        println!("Bid lookup size: {:?}, ask lookup size: {:?}", self.bid_lookup.len(), self.ask_lookup.len());
-        println!("Bid heap size: {:?}, ask heap size: {:?}", self.bids.len(), self.asks.len());
-        let start = Instant::now();
-        let _ = OrderBook::heap_from_lookup::<Max>(&self.bid_lookup, &mut self.bids);
-        let duration = start.elapsed();
-        println!("Bid heap reset time: {:?}", duration);
-        let start = Instant::now();
-        let _ = OrderBook::heap_from_lookup::<Min>(&self.ask_lookup, &mut self.asks);
-        let duration = start.elapsed();
-        println!("Ask heap reset time: {:?}", duration);
+        self.print(&start);
         self.validate();
 
     }
@@ -128,61 +99,65 @@ impl<'a> OrderBook {
         amount: f64,
         seq: i64) {
         if amount.to_bits() == (0.0 as f64).to_bits() {
-            lookup.remove(&level);
+            lookup.remove(&level).unwrap();
         } else {
-            let _ = lookup.insert(level, PriceLevel {level: level, amount: amount, sequence: seq});
+            let _ = lookup.insert(level, PriceLevel{ level: level, amount: amount, sequence: seq }).unwrap();
         }
     }
     fn update_heap<K>(
         lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-        heap: &mut Box<heapless::BinaryHeap<PriceLevel, K, 16384>>,
+        heap: &mut Box<heapless::BinaryHeap<usize, K, 16384>>,
         level: usize,
         amount: f64)
     where K: heapless::binary_heap::Kind {
-        while !lookup.contains_key(&heap.peek().unwrap().level) || heap.peek().unwrap().level == level {
-            let _ = heap.pop();
+        while !lookup.contains_key(&heap.peek().unwrap()) {
+            let _ = heap.pop().unwrap();
         }
-        if !(amount.to_bits() == (0.0 as f64).to_bits()) {
-            let _ = heap.push(*lookup.get(&level).unwrap());
+        if heap.len() == 16384 {
+            OrderBook::heap_from_lookup(lookup, heap);
+        }
+        if !(amount.to_bits() == (0.0 as f64).to_bits() && !lookup.contains_key(&level)) {
+            let _ = heap.push(level).unwrap();
         }
     }
     fn update_best<K>(
-        heap: &Box<heapless::BinaryHeap<PriceLevel, K, 16384>>,
-        best: &mut Option<PriceLevel>)
+        heap: &Box<heapless::BinaryHeap<usize, K, 16384>>,
+        best: &mut Option<usize>)
     where K: heapless::binary_heap::Kind {
         *best = Some(*heap.peek().unwrap());
-        //best.as_mut().unwrap().amount = heap.peek().unwrap().amount;
-        //best.as_mut().unwrap().level = heap.peek().unwrap().level;
-        //best.as_mut().unwrap().sequence = heap.peek().unwrap().sequence;
     }
     fn heap_from_lookup<K>(
         lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-        heap: &mut Box<heapless::BinaryHeap<PriceLevel, K, 16384>>)
+        heap: &mut Box<heapless::BinaryHeap<usize, K, 16384>>)
     where K: heapless::binary_heap::Kind {
         heap.clear();
         lookup.values().for_each(|v| {
-            let _ = heap.push(*v);
+            let _ = heap.push(v.level);
         });
     }
+    fn print(&mut self, start: &Instant) {
+        let duration = start.elapsed();
+        self.num_updates += 1;
+        self.average_update = ((self.average_update * ((self.num_updates - 1) as f64)) + (duration.as_nanos() as f64)) / (self.num_updates as f64);
+        println!("Order book updated in {:?}", duration);
+        println!("Average update time: {:?}", Duration::new(0, self.average_update as u32));
+        println!("Best bid: {:?}\nBest ask: {:?}", self.bid_lookup.get(self.best_bid.as_ref().unwrap()), self.ask_lookup.get(self.best_ask.as_ref().unwrap()));
+        println!("Bid lookup size: {:?}, ask lookup size: {:?}", self.bid_lookup.len(), self.ask_lookup.len());
+        println!("Bid heap size: {:?}, ask heap size: {:?}", self.bids.len(), self.asks.len());
+    }
     fn validate(&self) {
-        let best_bid = self.best_bid.unwrap();
-        let best_ask = self.best_ask.unwrap();
+        let best_bid = &self.best_bid.unwrap();
+        let best_ask = &self.best_ask.unwrap();
         let heap_bid = self.bids.peek().unwrap();
         let heap_ask = self.asks.peek().unwrap();
-        let bid = self.bid_lookup.get(&best_bid.level).unwrap();
-        let ask = self.ask_lookup.get(&best_ask.level).unwrap();
+        let bid = self.bid_lookup.get(&best_bid).unwrap();
+        let ask = self.ask_lookup.get(&best_ask).unwrap();
 
-        assert!(best_bid.level < best_ask.level);
-        assert_eq!(best_bid.level, heap_bid.level);
-        assert_eq!(best_ask.level, heap_ask.level);
-        assert_eq!(heap_bid, bid);
-        assert_eq!(heap_ask, ask);
-        assert_eq!(heap_bid.level, bid.level);
-        assert_eq!(heap_ask.level, ask.level);
-        assert_eq!(heap_bid.amount, bid.amount);
-        assert_eq!(heap_ask.amount, ask.amount);
-        assert_eq!(best_bid.amount, bid.amount);
-        assert_eq!(best_ask.amount, ask.amount);
+        assert!(best_bid < best_ask);
+        assert_eq!(best_bid, heap_bid);
+        assert_eq!(best_ask, heap_ask);
+        assert_eq!(heap_bid, &bid.level);
+        assert_eq!(heap_ask, &ask.level);
     }
 }
 
