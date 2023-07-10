@@ -45,8 +45,8 @@ impl<'a> CoinbaseReceiveClient {
                             count = count + 1;
                             total = total + duration.as_nanos() as usize;
                             let avg: f64 = (total as f64) / (count as f64);
-                            println!("Message parsed in {:?}", duration);
-                            println!("Average message parse time: {:?}", Duration::new(0, avg as u32));
+                            println!("Coinbase: message parsed in {:?}", duration);
+                            println!("Coinbase: average message parse time: {:?}", Duration::new(0, avg as u32));
                             self.handle_update(&msg.to_text().unwrap());
                         },
                         other => println!("Unknown message type {:?}: {:?}", other, msg),

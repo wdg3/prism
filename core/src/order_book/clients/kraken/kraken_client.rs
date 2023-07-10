@@ -4,8 +4,7 @@ use tokio::time::Instant;
 
 use crate::order_book::clients::client::WebSocketClient;
 
-use super::{kraken_adapter::KrakenAdapter, data_types::Message};
-use super::super::super::clients::coinbase::{data_types::{Snapshot, Update}};
+use super::{kraken_adapter::KrakenAdapter, data_types::{Message, Content}};
 
 pub struct KrakenReceiveClient {
     adapter: KrakenAdapter,
@@ -21,7 +20,7 @@ impl<'a> KrakenReceiveClient {
     }
 
     pub async fn init(&mut self) {
-        let sub_message: String = "{\"event\": \"subscribe\",\"pair\": [\"ETH/USD\"],\"subscription\": {\"name\": \"book\", \"depth\": 10}}".to_string();
+        let sub_message: String = "{\"event\": \"subscribe\",\"pair\": [\"ETH/USD\"],\"subscription\": {\"name\": \"book\", \"depth\": 100}}".to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive().await;
     }
@@ -29,61 +28,41 @@ impl<'a> KrakenReceiveClient {
     async fn receive(&mut self) {
         let mut count: usize = 0;
         let mut total: usize = 0;
+        let mut init = false;
         while let Some(msg) = self.client.receive().await {
             let start = Instant::now();
             match msg {
                 Ok(msg) => {
                     let res = serde_json_core::from_str::<Message>(&msg.to_text().unwrap());
                     match res {
-                        Ok(msg) => {
-                            println!("{:?}", msg);
-                        },
-                        Err(e) => {
-                            println!("Error parsing: {:?} for {:?}", e, &msg.to_text().unwrap());
-                        }
-                    }/*
-                    match message.msg_type {
-                        "subscriptions" => {
-                            println!("Received subscription confirmation");
-                        },
-                        "snapshot" => {
-                            self.handle_snapshot(&msg.to_text().unwrap())
-                        },
-                        "l2update" => {
+                        Ok((msg, _)) => {
                             let duration = start.elapsed();
                             count = count + 1;
                             total = total + duration.as_nanos() as usize;
                             let avg: f64 = (total as f64) / (count as f64);
-                            println!("Message parsed in {:?}", duration);
-                            println!("Average message parse time: {:?}", Duration::new(0, avg as u32));
-                            self.handle_update(&msg.to_text().unwrap());
+                            println!("Kraken: message parsed in {:?}", duration);
+                            println!("Kraken: average message parse time: {:?}", Duration::new(0, avg as u32));
+                            if !init {
+                                self.handle_snapshot(msg.content);
+                                init = true;
+                            } else {
+                                self.handle_update(msg.content);
+                            }
                         },
-                        other => println!("Unknown message type {:?}: {:?}", other, msg),
-                    }*/
+                        Err(_) => {}
+                    }
                 },
                 Err(err) => println!("{:?}", err)
             }
         }
     }
 
-    fn handle_snapshot(&mut self, snapshot: &str) {
-        let result = serde_json_core::from_str::<Snapshot>(snapshot);
-        match result {
-            Ok((snapshot, _)) => {
-                self.adapter.init_order_book(snapshot);
-            },
-            Err(err) => println!("Error parsing: {:?} for {:?}", err, snapshot),
-        }        
+    fn handle_snapshot(&mut self, snapshot: Content) {
+        self.adapter.init_order_book(snapshot);      
     }
 
-    fn handle_update(&mut self, update: & str) {
-        let result = serde_json_core::from_str::<Update>(update);
-        match result {
-            Ok((update, _)) => {
-                self.adapter.update(update);
-            }
-            Err(err) => println!("Error parsing: {:?} for {:?}", err, update),
-        }
+    fn handle_update(&mut self, update: Content) {
+        self.adapter.update(update);
     }
 }
 

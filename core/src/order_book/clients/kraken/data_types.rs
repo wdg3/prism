@@ -1,41 +1,29 @@
 use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Deserializer, de::{Visitor, SeqAccess}};
-use serde::de::Error;
 
 #[derive(Debug)]
 pub struct Message {
     channel_id: usize,
-    content: Content,
+    pub content: Content,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-#[serde(untagged)]
-pub enum Content {
-    Snapshot(Snapshot),
-    Update(Update),
+pub struct Content {
+    #[serde(alias = "as", alias = "a")]
+    pub asks: Option<heapless::Vec<PriceLevel, 100>>,
+    #[serde(alias = "bs", alias = "b")]
+    pub bids: Option<heapless::Vec<PriceLevel, 100>>,
+    #[serde(rename = "c")]
+    checksum: Option<heapless::String<32>>,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
-pub struct Snapshot {
-    //#[serde(rename = "as")]
-    asks: heapless::Vec<PriceLevel, 100>,
-    //#[serde(rename = "bs")]
-    bids: heapless::Vec<PriceLevel, 100>,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-pub struct Update {
-    a: heapless::Vec<PriceLevel, 100>,
-    b: heapless::Vec<PriceLevel, 100>,
-    c: usize,
-}
-
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct PriceLevel {
     pub level: usize,
     pub amount: f64,
     pub timestamp: DateTime<Utc>,
     pub sequence: i64,
+    pub republished: bool,
 }
 
 impl<'de> Deserialize<'de> for Message {
@@ -62,9 +50,7 @@ impl<'de> Visitor<'de> for MessageVisitor {
         A::Error: serde::de::Error,
     {  
         let channel_id = seq.next_element().unwrap().unwrap();
-        println!("{:?}", channel_id);
         let res = seq.next_element::<Content>();
-        println!("{:?}", res);
         let c = res.unwrap().unwrap();
         let _ = seq.next_element::<&str>();
         let _ = seq.next_element::<&str>();
@@ -87,7 +73,7 @@ impl<'de> Visitor<'de> for PriceLevelVisitor {
     type Value = PriceLevel;
 
     fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-        formatter.write_str("A Coinbase L2 order book update")
+        formatter.write_str("A Kraken L2 order book update")
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -98,12 +84,18 @@ impl<'de> Visitor<'de> for PriceLevelVisitor {
         let amount = seq.next_element::<&str>().unwrap().unwrap().parse::<f64>().unwrap();
         let timestamp_float = seq.next_element::<&str>().unwrap().unwrap().parse::<f64>().unwrap() * 1000000 as f64;
         let timestamp = Utc.timestamp_nanos((timestamp_float * (1000 as f64)) as i64);
+        let rep_opt = seq.next_element::<&str>().unwrap();
+        let republish = match rep_opt {
+            Some(r) => true,
+            None => false,
+        };
         Ok(PriceLevel {
             level: level,
             amount: amount,
             timestamp: timestamp,
             sequence: 0,
-            })
+            republished: republish,
+        })
     }
 }
 
@@ -113,7 +105,7 @@ fn test_message() {
 [
   0,
   {
-    "asks": [
+    "as": [
       [
         "5541.30000",
         "2.50700000",
@@ -130,7 +122,7 @@ fn test_message() {
         "1534614244.654432"
       ]
     ],
-    "bids": [
+    "bs": [
       [
         "5541.20000",
         "1.52900000",
@@ -161,10 +153,10 @@ fn test_message() {
 }
 
 #[test]
-fn test_content() {
+fn test_content_snapshot() {
     let input = r#"
   {
-    "asks": [
+    "as": [
       [
         "5541.30000",
         "2.50700000",
@@ -181,7 +173,7 @@ fn test_content() {
         "1534614244.654432"
       ]
     ],
-    "bids": [
+    "bs": [
       [
         "5541.20000",
         "1.52900000",
@@ -207,6 +199,56 @@ fn test_content() {
     }
     assert!(result.is_ok());
 
+}
+
+#[test]
+fn test_content_update() {
+    let input = r#"
+    {
+      "a": [
+        [
+          "5541.30000",
+          "2.50700000",
+          "1534614248.123678"
+        ],
+        [
+          "5541.80000",
+          "0.33000000",
+          "1534614098.345543"
+        ],
+        [
+          "5542.70000",
+          "0.64700000",
+          "1534614244.654432"
+        ]
+      ],
+      "b": [
+        [
+          "5541.20000",
+          "1.52900000",
+          "1534614248.765567"
+        ],
+        [
+          "5539.90000",
+          "0.30000000",
+          "1534614241.769870"
+        ],
+        [
+          "5539.50000",
+          "5.00000000",
+          "1534613831.243486"
+        ]
+      ],
+      "c": "974942666"
+    }
+  "#;
+
+    let result = serde_json_core::from_str::<Content>(input);
+    match &result {
+        Err(e) => println!("{:?}", e.to_string()),
+        Ok(r) => println!("{:?}", r),
+    }
+    assert!(result.is_ok());
 }
 
 #[test]

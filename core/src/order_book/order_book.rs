@@ -2,7 +2,7 @@ use std::time::Duration;
 use heapless::{binary_heap::{Max, Min}, Vec};
 use tokio::{time::Instant};
 
-use super::clients::coinbase::data_types::{PriceLevel, Snapshot, Update, Side};
+use super::data_types::{Update, Side, PriceLevel, Snapshot};
 
 #[derive(Default)]
 pub struct OrderBook {
