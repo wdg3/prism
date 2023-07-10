@@ -3,7 +3,6 @@ use serde::{Deserialize, Deserializer, de::{Visitor, SeqAccess}};
 
 #[derive(Debug)]
 pub struct Message {
-    channel_id: usize,
     pub content: Content,
 }
 
@@ -49,12 +48,12 @@ impl<'de> Visitor<'de> for MessageVisitor {
         A: SeqAccess<'de>,
         A::Error: serde::de::Error,
     {  
-        let channel_id = seq.next_element().unwrap().unwrap();
+        let _ = seq.next_element::<i32>().unwrap().unwrap();
         let res = seq.next_element::<Content>();
         let c = res.unwrap().unwrap();
         let _ = seq.next_element::<&str>();
         let _ = seq.next_element::<&str>();
-        Ok(Message { channel_id: channel_id, content: c })
+        Ok(Message { content: c })
     }
 }
 
@@ -86,7 +85,7 @@ impl<'de> Visitor<'de> for PriceLevelVisitor {
         let timestamp = Utc.timestamp_nanos((timestamp_float * (1000 as f64)) as i64);
         let rep_opt = seq.next_element::<&str>().unwrap();
         let republish = match rep_opt {
-            Some(r) => true,
+            Some(_) => true,
             None => false,
         };
         Ok(PriceLevel {

@@ -13,9 +13,7 @@ pub struct Snapshot {
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-pub struct Update<'a> {
-    product_id: &'a str,
-    pub time: &'a str,
+pub struct Update {
     pub changes: heapless::Vec<Change, 32>
 }
 

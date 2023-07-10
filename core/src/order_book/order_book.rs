@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{time::Duration, sync::Arc};
 use heapless::{binary_heap::{Max, Min}, Vec};
-use tokio::{time::Instant};
+use tokio::{time::Instant, sync::RwLock};
 
 use super::data_types::{Update, Side, PriceLevel, Snapshot};
 
@@ -10,8 +10,8 @@ pub struct OrderBook {
     asks: Box<heapless::BinaryHeap<usize, Min, 16384>>,
     pub bid_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
     pub ask_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-    best_bid: Option<usize>,
-    best_ask: Option<usize>,
+    pub best_bid: Option<usize>,
+    pub best_ask: Option<usize>,
     average_update: f64,
     num_updates: usize,
     count: i64,
@@ -89,7 +89,7 @@ impl OrderBook {
                 },
             }
         }
-        self.print(&start);
+        //self.print(&start);
         self.validate();
 
     }
@@ -168,15 +168,34 @@ pub struct Spread {
 }
 
 pub struct MultiBook<const S: usize, const T: usize> {
-    pub books: [OrderBook; S],
-    pub spreads: [Spread; T],
+    pub coinbase_book: Arc<RwLock<OrderBook>>,
+    pub kraken_book: Arc<RwLock<OrderBook>>,
+    pub spreads: heapless::Vec<Spread, T>,
 }
 
-impl<'a, const S: usize, const T: usize> MultiBook<S, T> {
-    fn change_bid(&mut self, book_idx: usize, new_bid: i64, new_vol: u64) {
+impl<const S: usize, const T: usize> MultiBook<S, T> {
+    pub fn new() -> Self {
+        return MultiBook {
+            coinbase_book: Arc::new(RwLock::new(OrderBook::new())),
+            kraken_book: Arc::new(RwLock::new(OrderBook::new())),
+            spreads: heapless::Vec::new(),
+        }
     }
-    fn change_ask(&mut self, book_idx: usize, new_ask: i64, new_vol: u64) {
-    }
+
     pub fn update_spread(&mut self, book_idx_1: usize, book_idx_2: usize) {
+    }
+    pub async fn print(&self) {
+        self.print_book(self.coinbase_book.clone(), "Coinbase").await;
+        self.print_book(self.kraken_book.clone(), "Kraken").await;
+    }
+    async fn print_book(&self, book: Arc<RwLock<OrderBook>>, name: &str) {
+        let guard = book.read().await;
+        let best_bid = guard.best_bid.as_ref();
+        let best_ask = guard.best_ask.as_ref();
+        if best_bid.is_some() && best_ask.is_some() {
+            let bid = guard.bid_lookup.get(best_bid.unwrap());
+            let ask = guard.ask_lookup.get(best_ask.unwrap());
+            println!("{:?} best bid: {:?}\n{:?} best ask: {:?}", name, bid, name, ask);
+        }
     }
 }

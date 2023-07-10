@@ -1,8 +1,8 @@
-use std::time::Duration;
+use std::{time::Duration, sync::Arc};
 
-use tokio::time::Instant;
+use tokio::{time::Instant, sync::RwLock};
 
-use crate::order_book::clients::client::WebSocketClient;
+use crate::order_book::{clients::client::WebSocketClient, order_book::OrderBook};
 
 use super::{coinbase_adapter::CoinbaseAdapter, data_types::{Snapshot, Message}, data_types::Update};
 
@@ -12,9 +12,9 @@ pub struct CoinbaseReceiveClient {
 }
 
 impl<'a> CoinbaseReceiveClient {
-    pub async fn new() -> CoinbaseReceiveClient {
+    pub async fn new(book: Arc<RwLock<OrderBook>>) -> CoinbaseReceiveClient {
         return CoinbaseReceiveClient {
-            adapter: CoinbaseAdapter::new().await,
+            adapter: CoinbaseAdapter::new(book).await,
             client: WebSocketClient::new("wss://ws-feed.exchange.coinbase.com".to_string()).await
         }
     }
@@ -38,16 +38,16 @@ impl<'a> CoinbaseReceiveClient {
                             println!("Received subscription confirmation");
                         },
                         "snapshot" => {
-                            self.handle_snapshot(&msg.to_text().unwrap())
+                            self.handle_snapshot(&msg.to_text().unwrap()).await
                         },
                         "l2update" => {
                             let duration = start.elapsed();
                             count = count + 1;
                             total = total + duration.as_nanos() as usize;
                             let avg: f64 = (total as f64) / (count as f64);
-                            println!("Coinbase: message parsed in {:?}", duration);
-                            println!("Coinbase: average message parse time: {:?}", Duration::new(0, avg as u32));
-                            self.handle_update(&msg.to_text().unwrap());
+                            //println!("Coinbase: message parsed in {:?}", duration);
+                            //println!("Coinbase: average message parse time: {:?}", Duration::new(0, avg as u32));
+                            self.handle_update(&msg.to_text().unwrap()).await
                         },
                         other => println!("Unknown message type {:?}: {:?}", other, msg),
                     }
@@ -57,21 +57,21 @@ impl<'a> CoinbaseReceiveClient {
         }
     }
 
-    fn handle_snapshot(&mut self, snapshot: &str) {
+    async fn handle_snapshot(&mut self, snapshot: &str) {
         let result = serde_json_core::from_str::<Snapshot>(snapshot);
         match result {
             Ok((snapshot, _)) => {
-                self.adapter.init_order_book(snapshot);
+                self.adapter.init_order_book(snapshot).await
             },
             Err(err) => println!("Error parsing: {:?} for {:?}", err, snapshot),
         }        
     }
 
-    fn handle_update(&mut self, update: & str) {
+    async fn handle_update(&mut self, update: & str) {
         let result = serde_json_core::from_str::<Update>(update);
         match result {
             Ok((update, _)) => {
-                self.adapter.update(update);
+                self.adapter.update(update).await
             }
             Err(err) => println!("Error parsing: {:?} for {:?}", err, update),
         }

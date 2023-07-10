@@ -1,38 +1,43 @@
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
+
 use crate::order_book::data_types::{PriceLevel, Snapshot, Change, Side, Update};
 use crate::order_book::order_book::OrderBook;
 use super::data_types::Content;
 use super::{kraken_client::KrakenSendClient};
 
 pub struct KrakenAdapter {
-    order_book: OrderBook,
+    order_book: Arc<RwLock<OrderBook>>,
     send_client: KrakenSendClient,
 }
 
 impl<'a> KrakenAdapter {
-    pub async fn new() -> KrakenAdapter {
+    pub async fn new(book: Arc<RwLock<OrderBook>>) -> KrakenAdapter {
         return KrakenAdapter {
-            order_book: OrderBook::new(),
+            order_book: book,
             send_client: KrakenSendClient::new().await,
          }
     }
 
-    pub fn init_order_book(&mut self, snapshot: Content) {
-        let mut bids = heapless::Vec::<PriceLevel, 10000>::new();
-        let mut asks = heapless::Vec::<PriceLevel, 10000>::new();
+    pub async fn init_order_book(&mut self, snapshot: Content) {
+        let mut bids = Box::new(heapless::Vec::<PriceLevel, 10000>::new());
+        let mut asks = Box::new(heapless::Vec::<PriceLevel, 10000>::new());
         for bid in snapshot.bids.unwrap().iter() {
             let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
         }
         for ask in snapshot.asks.unwrap().iter() {
             let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
         }
-        self.order_book.init(Snapshot {bids: bids, asks: asks});
+        let initial_book = Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
+        self.order_book.write().await.init(initial_book);
     }
 
     fn trade() {
 
     }
     
-    pub fn update(&mut self, update: Content) {
+    pub async fn update(&mut self, update: Content) {
         let mut changes = heapless::Vec::<Change, 32>::new();
         if update.bids.is_some() {
             for bid in update.bids.unwrap().iter() {
@@ -48,6 +53,7 @@ impl<'a> KrakenAdapter {
                     price_level: PriceLevel {level: ask.level, amount: ask.amount, sequence: 0}});
             }
         }
-        self.order_book.update(Update {product_id: "", time: "", changes: changes});
+        let update = Update {product_id: "", time: "", changes: changes};
+        self.order_book.write().await.update(update);
     }
 }
