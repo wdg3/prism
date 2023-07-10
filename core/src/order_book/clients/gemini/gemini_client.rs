@@ -4,23 +4,23 @@ use tokio::{time::Instant, sync::RwLock};
 
 use crate::order_book::{clients::client::WebSocketClient, order_book::{OrderBook, MultiBook}};
 
-use super::{kraken_adapter::KrakenAdapter, data_types::{Message, Content}};
+use super::{gemini_adapter::GeminiAdapter, data_types::{Content}};
 
-pub struct KrakenReceiveClient {
-    adapter: KrakenAdapter,
+pub struct GeminiReceiveClient {
+    adapter: GeminiAdapter,
     client: WebSocketClient,
 }
 
-impl<'a> KrakenReceiveClient {
-    pub async fn new(book: Arc<RwLock<OrderBook>>) -> KrakenReceiveClient {
-        return KrakenReceiveClient {
-            adapter: KrakenAdapter::new(book).await,
-            client: WebSocketClient::new("wss://ws.kraken.com".to_string()).await
+impl<'a> GeminiReceiveClient {
+    pub async fn new(book: Arc<RwLock<OrderBook>>) -> GeminiReceiveClient {
+        return GeminiReceiveClient {
+            adapter: GeminiAdapter::new(book).await,
+            client: WebSocketClient::new("wss://api.gemini.com/v2/marketdata".to_string()).await
         }
     }
 
     pub async fn init(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
-        let sub_message: String = "{\"event\": \"subscribe\",\"pair\": [\"ETH/USD\"],\"subscription\": {\"name\": \"book\", \"depth\": 100}}".to_string();
+        let sub_message: String = "{\"type\":\"subscribe\",\"subscriptions\":[{\"name\":\"l2\",\"symbols\":[\"ETHUSD\"]}]}".to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive(multi_book).await;
     }
@@ -33,22 +33,22 @@ impl<'a> KrakenReceiveClient {
             let start = Instant::now();
             match msg {
                 Ok(msg) => {
-                    let res = serde_json_core::from_str::<Message>(&msg.to_text().unwrap());
+                    let res = serde_json_core::from_str::<Content>(&msg.to_text().unwrap());
                     match res {
                         Ok((msg, _)) => {
                             let duration = start.elapsed();
                             count = count + 1;
                             total = total + duration.as_nanos() as usize;
                             let avg: f64 = (total as f64) / (count as f64);
-                            //println!("Kraken: message parsed in {:?}", duration);
-                            //println!("Kraken: average message parse time: {:?}", Duration::new(0, avg as u32));
+                            //println!("Gemini: message parsed in {:?}", duration);
+                            //println!("Gemini: average message parse time: {:?}", Duration::new(0, avg as u32));
                             if !init {
-                                self.handle_snapshot(msg.content).await;
+                                self.handle_snapshot(msg).await;
                                 init = true;
                             } else {
-                                self.handle_update(msg.content).await;
+                                self.handle_update(msg).await;
                             }
-                            multi_book.write().await.update_spread(2).await
+                            multi_book.write().await.update_spread(1).await
                         },
                         Err(_) => {}
                     }
@@ -67,14 +67,14 @@ impl<'a> KrakenReceiveClient {
     }
 }
 
-pub struct KrakenSendClient {
+pub struct GeminiSendClient {
     client: WebSocketClient,
 }
 
-impl KrakenSendClient {
+impl GeminiSendClient {
     pub async fn new() -> Self {
-        return KrakenSendClient {
-            client: WebSocketClient::new("wss://ws.kraken.com".to_string()).await
+        return GeminiSendClient {
+            client: WebSocketClient::new("wss://api.gemini.com/v2/marketdata/".to_string()).await
         }
     }
 }

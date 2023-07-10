@@ -15,7 +15,7 @@ pub struct PriceLevel {
 pub struct Update<'a> {
     pub product_id: &'a str,
     pub time: &'a str,
-    pub changes: heapless::Vec<Change, 32>
+    pub changes: heapless::Vec<Change, 512>
 }
 
 #[derive(Debug, PartialEq)]

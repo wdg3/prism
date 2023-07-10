@@ -38,7 +38,7 @@ impl<'a> CoinbaseAdapter {
     }
     
     pub async fn update(&mut self, update: Update) {
-        let mut changes = heapless::Vec::<Change, 32>::new();
+        let mut changes = heapless::Vec::<Change, 512>::new();
         for change in update.changes {
             let side = match change.side {
                 super::data_types::Side::Buy => Side::Buy,

@@ -2,7 +2,7 @@ use std::{time::Duration, sync::Arc};
 
 use tokio::{time::Instant, sync::RwLock};
 
-use crate::order_book::{clients::client::WebSocketClient, order_book::OrderBook};
+use crate::order_book::{clients::client::WebSocketClient, order_book::{OrderBook, MultiBook}};
 
 use super::{coinbase_adapter::CoinbaseAdapter, data_types::{Snapshot, Message}, data_types::Update};
 
@@ -19,13 +19,13 @@ impl<'a> CoinbaseReceiveClient {
         }
     }
 
-    pub async fn init(&mut self) {
+    pub async fn init(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
         let sub_message: String = "{\"type\":\"subscribe\",\"product_ids\":[\"ETH-USD\"],\"channels\":[\"level2\"]}".to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
-        self.receive().await;
+        self.receive(multi_book).await;
     }
 
-    async fn receive(&mut self) {
+    async fn receive(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
         let mut count: usize = 0;
         let mut total: usize = 0;
         while let Some(msg) = self.client.receive().await {
@@ -35,7 +35,7 @@ impl<'a> CoinbaseReceiveClient {
                     let (message, _) = serde_json_core::from_str::<Message>(&msg.to_text().unwrap()).expect("Parsing error");
                     match message.msg_type {
                         "subscriptions" => {
-                            println!("Received subscription confirmation");
+                            ()
                         },
                         "snapshot" => {
                             self.handle_snapshot(&msg.to_text().unwrap()).await
@@ -47,7 +47,8 @@ impl<'a> CoinbaseReceiveClient {
                             let avg: f64 = (total as f64) / (count as f64);
                             //println!("Coinbase: message parsed in {:?}", duration);
                             //println!("Coinbase: average message parse time: {:?}", Duration::new(0, avg as u32));
-                            self.handle_update(&msg.to_text().unwrap()).await
+                            self.handle_update(&msg.to_text().unwrap()).await;
+                            multi_book.write().await.update_spread(0).await
                         },
                         other => println!("Unknown message type {:?}: {:?}", other, msg),
                     }

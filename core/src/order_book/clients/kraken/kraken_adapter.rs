@@ -38,7 +38,7 @@ impl<'a> KrakenAdapter {
     }
     
     pub async fn update(&mut self, update: Content) {
-        let mut changes = heapless::Vec::<Change, 32>::new();
+        let mut changes = heapless::Vec::<Change, 512>::new();
         if update.bids.is_some() {
             for bid in update.bids.unwrap().iter() {
                 let _ = changes.push(Change{
