@@ -157,8 +157,3 @@ fn test_change() {
     assert_eq!(1001, unwrapped.price_level.level);
     assert_eq!(1100.0, unwrapped.price_level.amount);
 }
-
-#[test]
-fn test_side() {
-
-}

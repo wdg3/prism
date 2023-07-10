@@ -1,10 +1,8 @@
 mod order_book;
-use order_book::order_book::OrderBook;
-use order_book::order_book::MultiBook;
-use order_book::order_book::Spread;
 use tokio::runtime::Builder;
 
 use crate::order_book::clients::coinbase::coinbase_client::CoinbaseReceiveClient;
+use crate::order_book::clients::kraken::kraken_client::KrakenReceiveClient;
 
 #[tokio::main]
 async fn main() {
@@ -36,12 +34,18 @@ async fn main() {
             .build()
             .unwrap();
 
-        let coinbase_task = runtime.spawn(async {
+        /*let coinbase_task = runtime.spawn(async {
             let mut coinbase_client = CoinbaseReceiveClient::new().await;
             coinbase_client.init().await;
+        });*/
+
+        let kraken_task = runtime.spawn(async {
+            let mut kraken_client = KrakenReceiveClient::new().await;
+            kraken_client.init().await;
         });
 
-        coinbase_task.await.unwrap();
+        //coinbase_task.await.unwrap();
+        kraken_task.await.unwrap();
 
     /*let gemini_task = tokio::spawn(async move {
         let mut gemini_client = WebSocketClient::new("wss://api.gemini.com/v1/marketdata/ETHUSD".to_string()).await;
