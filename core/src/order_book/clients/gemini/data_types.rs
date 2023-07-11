@@ -25,38 +25,6 @@ pub struct PriceLevel {
     pub sequence: i64,
 }
 
-impl<'de> Deserialize<'de> for PriceLevel {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(PriceLevelVisitor)
-    }
-}
-
-struct PriceLevelVisitor;
-
-impl<'de> Visitor<'de> for PriceLevelVisitor {
-    type Value = PriceLevel;
-
-    fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
-        formatter.write_str("A Coinbase L2 order book update")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        let level = (seq.next_element::<&str>().unwrap().unwrap().parse::<f64>().unwrap() * 100.) as usize;
-        let amount = seq.next_element::<&str>().unwrap().unwrap().parse::<f64>().unwrap();
-        Ok(PriceLevel {
-            level: level,
-            amount: amount,
-            sequence: 0,
-            })
-    }
-}
-
 impl<'de> Deserialize<'de> for Change {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where

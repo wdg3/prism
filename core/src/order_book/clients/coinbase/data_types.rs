@@ -8,8 +8,8 @@ pub struct Message<'a> {
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Snapshot {
-    pub bids: heapless::Vec<PriceLevel, 10000>,
-    pub asks: heapless::Vec<PriceLevel, 10000>,
+    pub bids: Box<heapless::Vec<PriceLevel, 65536>>,
+    pub asks: Box<heapless::Vec<PriceLevel, 65536>>,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]

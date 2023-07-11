@@ -3,57 +3,104 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::order_book::data_types::{PriceLevel, Snapshot, Change, Side, Update};
-use crate::order_book::order_book::OrderBook;
-use super::data_types::Content;
+use crate::order_book::order_book::MultiBook;
+use super::data_types::{Message::Single, Message::Double, Message};
 use super::{kraken_client::KrakenSendClient};
 
 pub struct KrakenAdapter {
-    order_book: Arc<RwLock<OrderBook>>,
+    multi_book: Arc<RwLock<MultiBook<3, 6>>>,
     send_client: KrakenSendClient,
+    book_idx: usize,
 }
 
 impl<'a> KrakenAdapter {
-    pub async fn new(book: Arc<RwLock<OrderBook>>) -> KrakenAdapter {
+    pub async fn new(book: Arc<RwLock<MultiBook<3, 6>>>) -> KrakenAdapter {
         return KrakenAdapter {
-            order_book: book,
+            multi_book: book,
+            book_idx: 2,
             send_client: KrakenSendClient::new().await,
          }
     }
 
-    pub async fn init_order_book(&mut self, snapshot: Content) {
-        let mut bids = Box::new(heapless::Vec::<PriceLevel, 10000>::new());
-        let mut asks = Box::new(heapless::Vec::<PriceLevel, 10000>::new());
-        for bid in snapshot.bids.unwrap().iter() {
-            let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
+    pub async fn init_order_book(&mut self, snapshot: Message) {
+        let mut bids = Box::new(heapless::Vec::<PriceLevel, 65536>::new());
+        let mut asks = Box::new(heapless::Vec::<PriceLevel, 65536>::new());
+        let (c1, c2) = match snapshot {
+            Single{content: c} => (Some(c), None),
+            Double{content_1, content_2} => (Some(content_1), Some(content_2)),
+        };
+        if c1.is_some() {
+            let c = c1.unwrap();
+            for bid in c.bids.unwrap().iter() {
+                let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
+            }
+            for ask in c.asks.unwrap().iter() {
+                let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
+            }
         }
-        for ask in snapshot.asks.unwrap().iter() {
-            let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
+        if c2.is_some() {
+            let c = c2.unwrap();
+            for bid in c.bids.unwrap().iter() {
+                if !bid.republished {
+                    let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
+                }
+            }
+            for ask in c.asks.unwrap().iter() {
+                if !ask.republished {
+                    let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
+                }
+            }
         }
         let initial_book = Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
-        self.order_book.write().await.init(initial_book);
+        self.multi_book.write().await.books[self.book_idx].init(initial_book);
     }
 
     fn trade() {
 
     }
     
-    pub async fn update(&mut self, update: Content) {
+    pub async fn update(&mut self, update: Message) {
         let mut changes = heapless::Vec::<Change, 512>::new();
-        if update.bids.is_some() {
-            for bid in update.bids.unwrap().iter() {
-                let _ = changes.push(Change{
-                    side: Side::Buy,
-                    price_level: PriceLevel {level: bid.level, amount: bid.amount, sequence: 0}});
+        let (c1, c2) = match update {
+            Single{content: c} => (Some(c), None),
+            Double{content_1, content_2 } => (Some(content_1), Some(content_2)),
+        };
+        if c1.is_some() {
+            let u = c1.unwrap();
+            if u.bids.is_some() {
+                for bid in u.bids.unwrap().iter() {
+                    let _ = changes.push(Change{
+                        side: Side::Buy,
+                        price_level: PriceLevel {level: bid.level, amount: bid.amount, sequence: 0}});
+                }
+            }
+            if u.asks.is_some() {
+                for ask in u.asks.unwrap().iter() {
+                    let _ = changes.push(Change{
+                        side: Side::Sell,
+                        price_level: PriceLevel {level: ask.level, amount: ask.amount, sequence: 0}});
+                }
             }
         }
-        if update.asks.is_some() {
-            for ask in update.asks.unwrap().iter() {
-                let _ = changes.push(Change{
-                    side: Side::Sell,
-                    price_level: PriceLevel {level: ask.level, amount: ask.amount, sequence: 0}});
+        if c2.is_some() {
+            let u = c2.unwrap();
+            if u.bids.is_some() {
+                for bid in u.bids.unwrap().iter() {
+                    let _ = changes.push(Change{
+                        side: Side::Buy,
+                        price_level: PriceLevel {level: bid.level, amount: bid.amount, sequence: 0}});
+                }
+            }
+            if u.asks.is_some() {
+                for ask in u.asks.unwrap().iter() {
+                    let _ = changes.push(Change{
+                        side: Side::Sell,
+                        price_level: PriceLevel {level: ask.level, amount: ask.amount, sequence: 0}});
+                }
             }
         }
         let update = Update {product_id: "", time: "", changes: changes};
-        self.order_book.write().await.update(update);
+        self.multi_book.write().await.books[self.book_idx].update(update);
+        self.multi_book.write().await.update_spread(self.book_idx);
     }
 }

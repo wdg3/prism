@@ -3,26 +3,28 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::order_book::data_types::{Change, Side};
-use crate::order_book::{order_book::OrderBook, data_types::PriceLevel};
+use crate::order_book::{order_book::MultiBook, data_types::PriceLevel};
 use crate::order_book;
 use super::{coinbase_client::CoinbaseSendClient, data_types::{Snapshot, Update}};
 
 pub struct CoinbaseAdapter {
-    order_book: Arc<RwLock<OrderBook>>,
+    multi_book: Arc<RwLock<MultiBook<3, 6>>>,
     send_client: CoinbaseSendClient,
+    book_idx: usize,
 }
 
 impl<'a> CoinbaseAdapter {
-    pub async fn new(book: Arc<RwLock<OrderBook>>) -> CoinbaseAdapter {
+    pub async fn new(book: Arc<RwLock<MultiBook<3, 6>>>) -> CoinbaseAdapter {
         return CoinbaseAdapter {
-            order_book: book,
+            multi_book: book,
             send_client: CoinbaseSendClient::new().await,
+            book_idx: 0,
          }
     }
 
     pub async fn init_order_book(&mut self, snapshot: Snapshot) {
-        let mut bids = Box::new(heapless::Vec::<PriceLevel, 10000>::new());
-        let mut asks = Box::new(heapless::Vec::<PriceLevel, 10000>::new());
+        let mut bids = Box::new(heapless::Vec::<PriceLevel, 65536>::new());
+        let mut asks = Box::new(heapless::Vec::<PriceLevel, 65536>::new());
         for bid in snapshot.bids.iter() {
             let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
         }
@@ -30,7 +32,7 @@ impl<'a> CoinbaseAdapter {
             let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
         }
         let initial_book = order_book::data_types::Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
-        self.order_book.write().await.init(initial_book);
+        self.multi_book.write().await.books[self.book_idx].init(initial_book);
     }
 
     fn trade() {
@@ -53,6 +55,7 @@ impl<'a> CoinbaseAdapter {
                 }});
         }
         let update = order_book::data_types::Update {product_id: "", time: "", changes: changes};
-        self.order_book.write().await.update(update);
+        self.multi_book.write().await.books[self.book_idx].update(update);
+        self.multi_book.write().await.update_spread(self.book_idx);
     }
 }

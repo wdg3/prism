@@ -1,15 +1,15 @@
-use std::{time::Duration, sync::Arc};
+use std::time::Duration;
 use heapless::{binary_heap::{Max, Min}, Vec};
-use tokio::{time::Instant, sync::RwLock};
+use tokio::time::Instant;
 
 use super::data_types::{Update, Side, PriceLevel, Snapshot};
 
 #[derive(Default)]
 pub struct OrderBook {
-    bids: Box<heapless::BinaryHeap<usize, Max, 16384>>,
-    asks: Box<heapless::BinaryHeap<usize, Min, 16384>>,
-    pub bid_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-    pub ask_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
+    bids: Box<heapless::BinaryHeap<usize, Max, 65536>>,
+    asks: Box<heapless::BinaryHeap<usize, Min, 65536>>,
+    pub bid_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
+    pub ask_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
     pub best_bid: Option<usize>,
     pub best_ask: Option<usize>,
     average_update: f64,
@@ -60,9 +60,9 @@ impl OrderBook {
         OrderBook::update_best::<Min>(&self.asks, &mut self.best_ask);
     }
     fn init_side<K>(
-        lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-        heap: &mut Box<heapless::BinaryHeap<usize, K, 16384>>,
-        snapshot: &Vec<PriceLevel, 10000>)
+        lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
+        heap: &mut Box<heapless::BinaryHeap<usize, K, 65536>>,
+        snapshot: &Vec<PriceLevel, 65536>)
     where K: heapless::binary_heap::Kind {
             for price_level in snapshot {
                 let level: usize = price_level.level;
@@ -93,7 +93,7 @@ impl OrderBook {
 
     }
     fn update_lookup(
-        lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
+        lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
         level: usize,
         amount: f64,
         seq: i64) {
@@ -104,8 +104,8 @@ impl OrderBook {
         }
     }
     fn update_heap<K>(
-        lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-        heap: &mut Box<heapless::BinaryHeap<usize, K, 16384>>,
+        lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
+        heap: &mut Box<heapless::BinaryHeap<usize, K, 65536>>,
         level: usize,
         amount: f64)
     where K: heapless::binary_heap::Kind {
@@ -120,14 +120,14 @@ impl OrderBook {
         }
     }
     fn update_best<K>(
-        heap: &Box<heapless::BinaryHeap<usize, K, 16384>>,
+        heap: &Box<heapless::BinaryHeap<usize, K, 65536>>,
         best: &mut Option<usize>)
     where K: heapless::binary_heap::Kind {
         *best = Some(*heap.peek().unwrap());
     }
     fn heap_from_lookup<K>(
-        lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 16384>>,
-        heap: &mut Box<heapless::BinaryHeap<usize, K, 16384>>)
+        lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
+        heap: &mut Box<heapless::BinaryHeap<usize, K, 65536>>)
     where K: heapless::binary_heap::Kind {
         heap.clear();
         lookup.values().for_each(|v| {
@@ -164,38 +164,46 @@ impl OrderBook {
 pub struct Spread {
     pub raw: isize,
     pub percentage: f64,
+    pub seqs: [i64; 2],
 }
 
 pub struct MultiBook<const S: usize, const T: usize> {
-    pub books: Box<heapless::Vec<Arc<RwLock<OrderBook>>, S>>,
-    pub spreads: Box<heapless::Vec<Spread, T>>,
+    pub books: Box<heapless::Vec<OrderBook, S>>,
+    pub spreads: heapless::Vec<Spread, T>,
+    last_spreads: heapless::Vec<Spread, T>,
 }
 
 impl<const S: usize, const T: usize> MultiBook<S, T> {
     pub fn new() -> Self {
-        let mut books = heapless::Vec::<Arc<RwLock<OrderBook>>, S>::new();
+        let mut books = heapless::Vec::<OrderBook, S>::new();
         let mut spreads = heapless::Vec::<Spread, T>::new();
+        let mut last_spreads = heapless::Vec::<Spread, T>::new();
         for _ in 0..S {
-            let _ = books.push(Arc::new(RwLock::new(OrderBook::new())));
+            let _ = books.push(OrderBook::new());
         }
         for _ in 0..T {
             let _ = spreads.push(Spread::default());
+            let _ = last_spreads.push(Spread::default());
         }
         return MultiBook {
             books: Box::new(books),
-            spreads: Box::new(spreads),
+            spreads: spreads,
+            last_spreads: last_spreads,
         }
     }
 
-    pub async fn update_spread(&mut self, book_idx: usize) {
+    pub fn update_spread(&mut self, book_idx: usize) {
         for i in 0..S {
             if i != book_idx {
-                let forward_buy = self.get_best(Side::Sell, self.books[book_idx].clone()).await;
-                let forward_sell = self.get_best(Side::Buy, self.books[i].clone()).await;
-                let reverse_buy = self.get_best(Side::Sell, self.books[i].clone()).await;
-                let reverse_sell = self.get_best(Side::Buy, self.books[book_idx].clone()).await;
+                let forward_buy = self.get_best(Side::Sell, &self.books[book_idx]);
+                let forward_sell = self.get_best(Side::Buy, &self.books[i]);
+                let reverse_buy = self.get_best(Side::Sell, &self.books[i]);
+                let reverse_sell = self.get_best(Side::Buy, &self.books[book_idx]);
                 if forward_buy.is_some() && forward_sell.is_some() {
-                    let spread = self.spread_from_levels(forward_buy.unwrap() as isize, forward_sell.unwrap() as isize);
+                    let spread = self.spread_from_levels(
+                        forward_buy.unwrap().0 as isize, 
+                        forward_sell.unwrap().0 as isize,
+                        [forward_buy.unwrap().1, forward_sell.unwrap().1]);
                     let mut spread_idx = (book_idx * S) + i;
                     if i < book_idx {
                         spread_idx -= book_idx;
@@ -205,7 +213,10 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
                     self.spreads[spread_idx] = spread;
                 }
                 if reverse_buy.is_some() && reverse_sell.is_some() {
-                    let spread = self.spread_from_levels(reverse_buy.unwrap() as isize, reverse_sell.unwrap() as isize);
+                    let spread = self.spread_from_levels(
+                        reverse_buy.unwrap().0 as isize, 
+                        reverse_sell.unwrap().0 as isize,
+                        [reverse_buy.unwrap().1, reverse_sell.unwrap().1]);
                     let mut spread_idx = (i * S) + book_idx;
                     if book_idx < i {
                         spread_idx -= i;
@@ -216,42 +227,48 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
                 }
             }
         }
-        for spread in &*self.spreads {
-            if spread.percentage >= 0.001 {
-                self.print().await;
+        for i in 0..T {
+            let spread = &self.spreads[i];
+            if spread.percentage >= 0.001 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
+                self.print();
+                self.last_spreads[i] = spread.clone();
                 return;
             }
         }
     }
-    fn spread_from_levels(&self, ask: isize, bid: isize) -> Spread {
-        return Spread {raw: bid - ask, percentage: (bid - ask) as f64 / ask as f64}
+    fn spread_from_levels(&self, ask: isize, bid: isize, seqs: [i64; 2]) -> Spread {
+        return Spread {raw: bid - ask, percentage: (bid - ask) as f64 / ask as f64, seqs: seqs}
     }
-    pub async fn print(&self) {
-        self.print_book(self.books[0].clone(), r"Coinbase").await;
-        self.print_book(self.books[1].clone(), r"Gemini").await;
-        self.print_book(self.books[2].clone(), r"Kraken").await;
+    pub fn print(&self) {
+        self.print_book(&self.books[0], r"Coinbase");
+        self.print_book(&self.books[1], r"Gemini");
+        self.print_book(&self.books[2], r"Kraken");
         for spread in &*self.spreads {
             println!("{:?}", spread);
         }
     }
-    async fn print_book(&self, book: Arc<RwLock<OrderBook>>, name: &str) {
-        let guard = book.read().await;
-        let best_bid = guard.best_bid.as_ref();
-        let best_ask = guard.best_ask.as_ref();
-        if best_bid.is_some() && best_ask.is_some() {
-            let bid = guard.bid_lookup.get(best_bid.unwrap());
-            let ask = guard.ask_lookup.get(best_ask.unwrap());
+    fn print_book(&self, book: &OrderBook, name: &str) {
+
+        if book.best_bid.is_some() && book.best_ask.is_some() {
+            let bid = book.bid_lookup.get(&book.best_bid.unwrap());
+            let ask = book.ask_lookup.get(&book.best_ask.unwrap());
             println!("{:?} best bid: {:?}\n{:?} best ask: {:?}", name, bid, name, ask);
         }
     }
-    async fn get_best(&self, side: Side, book: Arc<RwLock<OrderBook>>) -> Option<usize> {
+    fn get_best(&self, side: Side, book: &OrderBook) -> Option<(usize, i64)> {
         match side {
             Side::Buy => {
-                return book.read().await.best_bid;
+                match book.best_bid {
+                    Some(b) => Some((b, book.bid_lookup.get(&b).unwrap().sequence)),
+                    None => None,
+                }
             },
             Side::Sell => {
-                return book.read().await.best_ask;
-            }
+                match book.best_ask {
+                    Some(a) => Some((a, book.ask_lookup.get(&a).unwrap().sequence)),
+                    None => None,
+                }
+            },
         }
     }
 }

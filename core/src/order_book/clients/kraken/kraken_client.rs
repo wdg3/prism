@@ -1,10 +1,11 @@
 use std::{time::Duration, sync::Arc};
 
+use serde_json::Value;
 use tokio::{time::Instant, sync::RwLock};
 
-use crate::order_book::{clients::client::WebSocketClient, order_book::{OrderBook, MultiBook}};
+use crate::order_book::{clients::{client::WebSocketClient}, order_book::MultiBook};
 
-use super::{kraken_adapter::KrakenAdapter, data_types::{Message, Content}};
+use super::{kraken_adapter::KrakenAdapter, data_types::{Message}};
 
 pub struct KrakenReceiveClient {
     adapter: KrakenAdapter,
@@ -12,20 +13,20 @@ pub struct KrakenReceiveClient {
 }
 
 impl<'a> KrakenReceiveClient {
-    pub async fn new(book: Arc<RwLock<OrderBook>>) -> KrakenReceiveClient {
+    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>) -> KrakenReceiveClient {
         return KrakenReceiveClient {
-            adapter: KrakenAdapter::new(book).await,
+            adapter: KrakenAdapter::new(multi_book).await,
             client: WebSocketClient::new("wss://ws.kraken.com".to_string()).await
         }
     }
 
-    pub async fn init(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
-        let sub_message: String = "{\"event\": \"subscribe\",\"pair\": [\"ETH/USD\"],\"subscription\": {\"name\": \"book\", \"depth\": 100}}".to_string();
+    pub async fn init(&mut self) {
+        let sub_message: String = "{\"event\": \"subscribe\",\"pair\": [\"XBT/USD\"],\"subscription\": {\"name\": \"book\", \"depth\": 1000}}".to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
-        self.receive(multi_book).await;
+        self.receive().await;
     }
 
-    async fn receive(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
+    async fn receive(&mut self) {
         let mut count: usize = 0;
         let mut total: usize = 0;
         let mut init = false;
@@ -33,9 +34,22 @@ impl<'a> KrakenReceiveClient {
             let start = Instant::now();
             match msg {
                 Ok(msg) => {
-                    let res = serde_json_core::from_str::<Message>(&msg.to_text().unwrap());
+                    let res: Value = serde_json::from_str::<Value>(&msg.to_text().unwrap()).unwrap();
                     match res {
-                        Ok((msg, _)) => {
+                        Value::Array(arr) => {
+                            let message: Message;
+                            if arr.len() == 4 {
+                                message = Message::Single {
+                                    content: serde_json::from_value(arr.get(1).unwrap().clone()).unwrap(),
+                                }
+                            } else if arr.len() == 5 {
+                                message = Message::Double {
+                                    content_1: serde_json::from_value(arr.get(1).unwrap().clone()).unwrap(),
+                                    content_2: serde_json::from_value(arr.get(2).unwrap().clone()).unwrap(),
+                                }
+                            } else {
+                                panic!("{:?}, {:?}", arr.len(), arr);
+                            }
                             let duration = start.elapsed();
                             count = count + 1;
                             total = total + duration.as_nanos() as usize;
@@ -43,26 +57,25 @@ impl<'a> KrakenReceiveClient {
                             //println!("Kraken: message parsed in {:?}", duration);
                             //println!("Kraken: average message parse time: {:?}", Duration::new(0, avg as u32));
                             if !init {
-                                self.handle_snapshot(msg.content).await;
+                                self.handle_snapshot(message).await;
                                 init = true;
                             } else {
-                                self.handle_update(msg.content).await;
+                                self.handle_update(message).await;
                             }
-                            multi_book.write().await.update_spread(2).await
                         },
-                        Err(_) => {}
+                        _ => (),
                     }
                 },
-                Err(err) => println!("{:?}", err)
+                Err(err) => println!("Kraken: {:?}", err)
             }
         }
     }
 
-    async fn handle_snapshot(&mut self, snapshot: Content) {
+    async fn handle_snapshot(&mut self, snapshot: Message) {
         self.adapter.init_order_book(snapshot).await;
     }
 
-    async fn handle_update(&mut self, update: Content) {
+    async fn handle_update(&mut self, update: Message) {
         self.adapter.update(update).await;
     }
 }

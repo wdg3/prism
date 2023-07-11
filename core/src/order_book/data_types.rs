@@ -1,7 +1,7 @@
 #[derive(Debug, PartialEq)]
 pub struct Snapshot {
-    pub bids: Box<heapless::Vec<PriceLevel, 10000>>,
-    pub asks: Box<heapless::Vec<PriceLevel, 10000>>,
+    pub bids: Box<heapless::Vec<PriceLevel, 65536>>,
+    pub asks: Box<heapless::Vec<PriceLevel, 65536>>,
 }
 
 #[derive(Copy, Clone, Default, Debug, PartialEq)]

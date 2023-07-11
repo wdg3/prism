@@ -2,7 +2,7 @@ use std::{time::Duration, sync::Arc};
 
 use tokio::{time::Instant, sync::RwLock};
 
-use crate::order_book::{clients::client::WebSocketClient, order_book::{OrderBook, MultiBook}};
+use crate::order_book::{clients::client::WebSocketClient, order_book::MultiBook};
 
 use super::{gemini_adapter::GeminiAdapter, data_types::{Content}};
 
@@ -12,20 +12,20 @@ pub struct GeminiReceiveClient {
 }
 
 impl<'a> GeminiReceiveClient {
-    pub async fn new(book: Arc<RwLock<OrderBook>>) -> GeminiReceiveClient {
+    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>) -> GeminiReceiveClient {
         return GeminiReceiveClient {
-            adapter: GeminiAdapter::new(book).await,
+            adapter: GeminiAdapter::new(multi_book).await,
             client: WebSocketClient::new("wss://api.gemini.com/v2/marketdata".to_string()).await
         }
     }
 
-    pub async fn init(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
-        let sub_message: String = "{\"type\":\"subscribe\",\"subscriptions\":[{\"name\":\"l2\",\"symbols\":[\"ETHUSD\"]}]}".to_string();
+    pub async fn init(&mut self) {
+        let sub_message: String = "{\"type\":\"subscribe\",\"subscriptions\":[{\"name\":\"l2\",\"symbols\":[\"BTCUSD\"]}]}".to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
-        self.receive(multi_book).await;
+        self.receive().await;
     }
 
-    async fn receive(&mut self, multi_book: Arc<RwLock<MultiBook<3, 6>>>) {
+    async fn receive(&mut self) {
         let mut count: usize = 0;
         let mut total: usize = 0;
         let mut init = false;
@@ -48,12 +48,11 @@ impl<'a> GeminiReceiveClient {
                             } else {
                                 self.handle_update(msg).await;
                             }
-                            multi_book.write().await.update_spread(1).await
                         },
                         Err(_) => {}
                     }
                 },
-                Err(err) => println!("{:?}", err)
+                Err(err) => println!("Gemini: {:?}", err)
             }
         }
     }
