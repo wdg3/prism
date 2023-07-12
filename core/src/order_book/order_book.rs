@@ -1,4 +1,5 @@
 use std::time::Duration;
+use chrono::Local;
 use heapless::{binary_heap::{Max, Min}, Vec};
 use tokio::time::Instant;
 
@@ -6,6 +7,8 @@ use super::data_types::{Update, Side, PriceLevel, Snapshot};
 
 #[derive(Default)]
 pub struct OrderBook {
+    name: heapless::String<8>,
+    pair: heapless::String<8>,
     bids: Box<heapless::BinaryHeap<usize, Max, 65536>>,
     asks: Box<heapless::BinaryHeap<usize, Min, 65536>>,
     pub bid_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
@@ -40,8 +43,10 @@ impl Ord for PriceLevel {
 }
 
 impl OrderBook {
-    pub fn new() -> Self {
+    pub fn new(name: heapless::String<8>, pair: heapless::String<8>) -> Self {
         return OrderBook {
+            name: name,
+            pair: pair,
             bids: Box::new(heapless::BinaryHeap::new()),
             asks: Box::new(heapless::BinaryHeap::new()),
             bid_lookup: Box::new(heapless::FnvIndexMap::new()),
@@ -112,10 +117,10 @@ impl OrderBook {
         while !lookup.contains_key(&heap.peek().unwrap()) {
             let _ = heap.pop().unwrap();
         }
-        if heap.len() == 16384 {
+        if heap.len() == 65536 {
             OrderBook::heap_from_lookup(lookup, heap);
         }
-        if !(amount.to_bits() == (0.0 as f64).to_bits() && !lookup.contains_key(&level)) {
+        if !amount.to_bits() == (0.0 as f64).to_bits() {
             let _ = heap.push(level).unwrap();
         }
     }
@@ -144,7 +149,7 @@ impl OrderBook {
         println!("Bid lookup size: {:?}, ask lookup size: {:?}", self.bid_lookup.len(), self.ask_lookup.len());
         println!("Bid heap size: {:?}, ask heap size: {:?}", self.bids.len(), self.asks.len());
     }
-    fn validate(&self) {
+    fn validate(&mut self) {
         let best_bid = &self.best_bid.unwrap();
         let best_ask = &self.best_ask.unwrap();
         let heap_bid = self.bids.peek().unwrap();
@@ -152,11 +157,10 @@ impl OrderBook {
         let bid = self.bid_lookup.get(&best_bid).unwrap();
         let ask = self.ask_lookup.get(&best_ask).unwrap();
 
-        assert!(best_bid < best_ask);
-        assert_eq!(best_bid, heap_bid);
-        assert_eq!(best_ask, heap_ask);
-        assert_eq!(heap_bid, &bid.level);
-        assert_eq!(heap_ask, &ask.level);
+        if best_bid >= best_ask || best_bid != heap_bid || best_ask != heap_ask || heap_bid != &bid.level || heap_ask != &ask.level {
+            self.print(&Instant::now());
+            panic!("{:?}/{:?}: invalid order book state", self.name, self.pair);
+        }
     }
 }
 
@@ -168,24 +172,26 @@ pub struct Spread {
 }
 
 pub struct MultiBook<const S: usize, const T: usize> {
+    pub pair: heapless::String<8>,
     pub books: Box<heapless::Vec<OrderBook, S>>,
     pub spreads: heapless::Vec<Spread, T>,
     last_spreads: heapless::Vec<Spread, T>,
 }
 
 impl<const S: usize, const T: usize> MultiBook<S, T> {
-    pub fn new() -> Self {
+    pub fn new(pair: heapless::String<8>, names: [heapless::String<8>; S]) -> Self {
         let mut books = heapless::Vec::<OrderBook, S>::new();
         let mut spreads = heapless::Vec::<Spread, T>::new();
         let mut last_spreads = heapless::Vec::<Spread, T>::new();
-        for _ in 0..S {
-            let _ = books.push(OrderBook::new());
+        for i in 0..S {
+            let _ = books.push(OrderBook::new(names[i].to_owned(), pair.to_owned()));
         }
         for _ in 0..T {
             let _ = spreads.push(Spread::default());
             let _ = last_spreads.push(Spread::default());
         }
         return MultiBook {
+            pair: pair,
             books: Box::new(books),
             spreads: spreads,
             last_spreads: last_spreads,
@@ -240,12 +246,15 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         return Spread {raw: bid - ask, percentage: (bid - ask) as f64 / ask as f64, seqs: seqs}
     }
     pub fn print(&self) {
+        println!("{:?}", self.pair);
         self.print_book(&self.books[0], r"Coinbase");
         self.print_book(&self.books[1], r"Gemini");
         self.print_book(&self.books[2], r"Kraken");
         for spread in &*self.spreads {
             println!("{:?}", spread);
         }
+        let date = Local::now();
+        println!("{}", date.format("%Y-%m-%d:%H:%M:%S"));
     }
     fn print_book(&self, book: &OrderBook, name: &str) {
 

@@ -25,6 +25,7 @@ impl<'a> GeminiAdapter {
     }
 
     pub async fn init_order_book(&mut self, snapshot: Content) {
+        println!("{:?}", snapshot.changes.len());
         let mut bids = Box::new(heapless::Vec::<PriceLevel, 65536>::new());
         let mut asks = Box::new(heapless::Vec::<PriceLevel, 65536>::new());
         for change in snapshot.changes.iter() {
@@ -47,8 +48,11 @@ impl<'a> GeminiAdapter {
     }
     
     pub async fn update(&mut self, update: Content) {
+        if update.changes.len() > 512 {
+            panic!("Oversized update for Gemini");
+        }
         let mut changes = heapless::Vec::<Change, 512>::new();
-        for change in update.changes {
+        for change in update.changes.iter() {
             let side = match change.side {
                 Side::Sell => order_book::data_types::Side::Sell,
                 Side::Buy => order_book::data_types::Side::Buy,

@@ -2,7 +2,7 @@ use serde::{Deserialize, Deserializer, de::{Visitor, SeqAccess}};
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub struct Content {
-    pub changes: heapless::Vec<Change, 5000>,
+    pub changes: Box<heapless::Vec<Change, 65536>>,
 }
 
 #[derive(Debug, PartialEq)]

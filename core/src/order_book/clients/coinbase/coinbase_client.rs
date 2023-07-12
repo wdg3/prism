@@ -9,18 +9,27 @@ use super::{coinbase_adapter::CoinbaseAdapter, data_types::{Snapshot, Message}, 
 pub struct CoinbaseReceiveClient {
     adapter: CoinbaseAdapter,
     client: WebSocketClient,
+    pair: heapless::String<8>,
 }
 
 impl<'a> CoinbaseReceiveClient {
-    pub async fn new(book: Arc<RwLock<MultiBook<3, 6>>>) -> CoinbaseReceiveClient {
+    pub async fn new(book: Arc<RwLock<MultiBook<3, 6>>>, pair: heapless::String<8>) -> CoinbaseReceiveClient {
         return CoinbaseReceiveClient {
             adapter: CoinbaseAdapter::new(book).await,
-            client: WebSocketClient::new("wss://ws-feed.exchange.coinbase.com".to_string()).await
+            client: WebSocketClient::new("wss://ws-feed.exchange.coinbase.com".to_string()).await,
+            pair: pair,
         }
     }
 
     pub async fn init(&mut self) {
-        let sub_message: String = "{\"type\":\"subscribe\",\"product_ids\":[\"BTC-USD\"],\"channels\":[\"level2\"]}".to_string();
+        let p = match self.pair.as_str() {
+            "ETH-USD" => "ETH-USD",
+            "BTC-USD" => "BTC-USD",
+            "ETH-USDT" => "ETH-USDT",
+            "BTC-USDT" => "BTC-USDT",
+            _ => panic!("Bad pair: {:?}", self.pair),
+        };
+        let sub_message: String = format!("{{\"type\":\"subscribe\",\"product_ids\":[{:?}],\"channels\":[\"level2\"]}}", p).to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive().await;
     }

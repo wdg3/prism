@@ -10,18 +10,28 @@ use super::{kraken_adapter::KrakenAdapter, data_types::{Message}};
 pub struct KrakenReceiveClient {
     adapter: KrakenAdapter,
     client: WebSocketClient,
+    pair: heapless::String<8>,
 }
 
 impl<'a> KrakenReceiveClient {
-    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>) -> KrakenReceiveClient {
+    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>, pair: heapless::String<8>) -> KrakenReceiveClient {
         return KrakenReceiveClient {
             adapter: KrakenAdapter::new(multi_book).await,
-            client: WebSocketClient::new("wss://ws.kraken.com".to_string()).await
+            client: WebSocketClient::new("wss://ws.kraken.com".to_string()).await,
+            pair: pair,
         }
     }
 
     pub async fn init(&mut self) {
-        let sub_message: String = "{\"event\": \"subscribe\",\"pair\": [\"XBT/USD\"],\"subscription\": {\"name\": \"book\", \"depth\": 1000}}".to_string();
+        let p = match self.pair.as_str() {
+            "ETH-USD" => "ETH/USD",
+            "BTC-USD" => "XBT/USD",
+            "BTC-USDT" => "XBT/USDT",
+            "ETH-USDT" => "ETH/USDT",
+            _ => panic!("Bad pair: {:?}", self.pair),
+        };
+        let sub_message: String = format!("{{\"event\": \"subscribe\",\"pair\": [{:?}],\"subscription\": {{\"name\": \"book\", \"depth\": 1000}}}}", p).to_string();
+        println!("{:?}", sub_message);
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive().await;
     }

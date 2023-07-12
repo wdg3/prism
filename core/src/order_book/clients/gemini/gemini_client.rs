@@ -9,18 +9,27 @@ use super::{gemini_adapter::GeminiAdapter, data_types::{Content}};
 pub struct GeminiReceiveClient {
     adapter: GeminiAdapter,
     client: WebSocketClient,
+    pair: heapless::String<8>,
 }
 
 impl<'a> GeminiReceiveClient {
-    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>) -> GeminiReceiveClient {
+    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>, pair: heapless::String<8>) -> GeminiReceiveClient {
         return GeminiReceiveClient {
             adapter: GeminiAdapter::new(multi_book).await,
-            client: WebSocketClient::new("wss://api.gemini.com/v2/marketdata".to_string()).await
+            client: WebSocketClient::new("wss://api.gemini.com/v2/marketdata".to_string()).await,
+            pair: pair,
         }
     }
 
     pub async fn init(&mut self) {
-        let sub_message: String = "{\"type\":\"subscribe\",\"subscriptions\":[{\"name\":\"l2\",\"symbols\":[\"BTCUSD\"]}]}".to_string();
+        let p = match self.pair.as_str() {
+            "ETH-USD" => "ETHUSD",
+            "BTC-USD" => "BTCUSD",
+            "ETH-USDT" => "ETHUSDT",
+            "BTC-USDT" => "BTCUSDT",
+            _ => panic!("Bad pair: {:?}", self.pair),
+        };
+        let sub_message: String = format!("{{\"type\":\"subscribe\",\"subscriptions\":[{{\"name\":\"l2\",\"symbols\":[{:?}]}}]}}", p).to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive().await;
     }
