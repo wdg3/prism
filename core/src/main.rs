@@ -77,18 +77,18 @@ async fn main() {
         let _ = pair_task_vec.push(gemini_task);
         let _ = pair_task_vec.push(kraken_task);
     }
-    let monitor_task = runtime.spawn(async move {
+    /*let monitor_task = runtime.spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(10)).await;
             for lock in multi_book_vec.iter() {
                 lock.lock().await.print()
             }
         }
-    });
+    });*/
     for pair_task in pair_task_vec {
         pair_task.await.unwrap();
     }
-    monitor_task.await.unwrap();
+    //monitor_task.await.unwrap();
 }
 
     /*let binance_task = tokio::spawn(async move {

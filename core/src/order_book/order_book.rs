@@ -103,7 +103,7 @@ impl OrderBook {
         amount: f64,
         seq: i64) {
         if amount.to_bits() == (0.0 as f64).to_bits() && lookup.contains_key(&level){
-            lookup.remove(&level).unwrap();
+            lookup.remove(&level).unwrap();                                                                                                                                                     
         } else if amount.to_bits() != (0.0 as f64).to_bits() {
             let _ = lookup.insert(level, PriceLevel{ level: level, amount: amount, sequence: seq }).unwrap();
         }
@@ -114,13 +114,13 @@ impl OrderBook {
         level: usize,
         amount: f64)
     where K: heapless::binary_heap::Kind {
+        if heap.len() >= 65536 {
+            OrderBook::heap_from_lookup(lookup, heap);
+        }
         while !lookup.contains_key(&heap.peek().unwrap()) {
             let _ = heap.pop().unwrap();
         }
-        if heap.len() == 65536 {
-            OrderBook::heap_from_lookup(lookup, heap);
-        }
-        if !amount.to_bits() == (0.0 as f64).to_bits() {
+        if !(amount.to_bits() == (0.0 as f64).to_bits()) {
             let _ = heap.push(level).unwrap();
         }
     }
@@ -237,7 +237,7 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             let spread = &self.spreads[i];
             if spread.percentage >= 0.0005 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
-                //self.print();
+                self.print();
                 return;
             }
         }
@@ -261,7 +261,10 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         if book.best_bid.is_some() && book.best_ask.is_some() {
             let bid = book.bid_lookup.get(&book.best_bid.unwrap());
             let ask = book.ask_lookup.get(&book.best_ask.unwrap());
+            let bid_hs = book.bids.len();
+            let ask_hs = book.asks.len();
             println!("{:?} best bid: {:?}\n{:?} best ask: {:?}", book.name, bid, book.name, ask);
+            println!("Bid heap: {:?} elements\nAsk heap: {:?} elements", bid_hs, ask_hs);
         }
     }
     fn get_best(&self, side: Side, book: &OrderBook) -> Option<(usize, i64)> {

@@ -10,9 +10,9 @@ pub enum Message {
 #[derive(Deserialize, Debug, Default, PartialEq)]
 pub struct Content {
     #[serde(alias = "as", alias = "a")]
-    pub asks: Option<heapless::Vec<PriceLevel, 1000>>,
+    pub asks: Option<heapless::Vec<PriceLevel, 2048>>,
     #[serde(alias = "bs", alias = "b")]
-    pub bids: Option<heapless::Vec<PriceLevel, 1000>>,
+    pub bids: Option<heapless::Vec<PriceLevel, 2048>>,
     #[serde(rename = "c")]
     checksum: Option<heapless::String<32>>,
 }
