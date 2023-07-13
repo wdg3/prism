@@ -61,7 +61,10 @@ impl<'a> BitstampReceiveClient {
                         Err(_) => (),
                     }
                 },
-                Err(err) => println!("Bitstamp: {:?}", err)
+                Err(err) => {
+                    println!("Bitstamp: {:?}\nAttempting reset.", err);
+                    return
+                }
             }
         }
     }

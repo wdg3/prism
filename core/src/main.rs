@@ -57,28 +57,40 @@ async fn main() {
         //let gemini_multi_lock = multi_lock.clone();
         let kraken_multi_lock = multi_lock.clone();
         //let bitstamp_multi_lock = multi_lock.clone();
-        let cb_pair = heapless::String::<8>::from(pair.to_owned());
-        //let gemini_pair = heapless::String::<8>::from(pair.to_owned());
-        let kraken_pair = heapless::String::<8>::from(pair.to_owned());
-        //let bitstamp_pair = heapless::String::<8>::from(pair.to_owned());
     
         let coinbase_task = runtime.spawn(async move {
-            let mut coinbase_client = CoinbaseReceiveClient::new(cb_multi_lock, cb_pair).await;
-            coinbase_client.init().await;
+            loop {
+                let lock = cb_multi_lock.clone();
+                let pair = heapless::String::<8>::from(*pair);
+                let mut coinbase_client = CoinbaseReceiveClient::new(lock, pair).await;
+                coinbase_client.init().await;
+            }
         });
         
         /*let gemini_task = runtime.spawn(async move {
-            let mut gemini_client = GeminiReceiveClient::new(gemini_multi_lock, gemini_pair).await;
-            gemini_client.init().await;
+            loop {
+                let lock = gemini_multi_lock.clone();
+                let pair = heapless::String::<8>::from(*pair);
+                let mut gemini_client = GeminiReceiveClient::new(lock, pair).await;
+                gemini_client.init().await;
+            }
         });*/
     
         let kraken_task = runtime.spawn(async move {
-            let mut kraken_client = KrakenReceiveClient::new(kraken_multi_lock, kraken_pair).await;
-            kraken_client.init().await;
+            loop {
+                let lock = kraken_multi_lock.clone();
+                let pair = heapless::String::<8>::from(*pair);
+                let mut kraken_client = KrakenReceiveClient::new(lock, pair).await;
+                kraken_client.init().await;
+            }
         });
         /*let bitstamp_task = runtime.spawn(async move {
-            let mut bitstamp_client = BitstampReceiveClient::new(bitstamp_multi_lock, bitstamp_pair).await;
-            bitstamp_client.init().await;
+            loop {
+                let lock = bitstamp_multi_lock.clone();
+                let pair = heapless::String::<8>::from(*pair);
+                let mut bitstamp_client = BitstampReceiveClient::new(lock, pair).await;
+                bitstamp_client.init().await;
+            }
         });*/
 
         let _ = pair_task_vec.push(coinbase_task);

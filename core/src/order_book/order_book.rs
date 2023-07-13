@@ -59,17 +59,21 @@ impl OrderBook {
         }
     }
     pub fn init(&mut self, snapshot: Snapshot) {
-        OrderBook::init_side(&mut self.bid_lookup, &mut self.bids, &snapshot.bids);
-        OrderBook::init_side(&mut self.ask_lookup, &mut self.asks, &snapshot.asks);
+        OrderBook::init_side(&mut self.bid_lookup, &mut self.bids, &mut self.best_bid, &snapshot.bids);
+        OrderBook::init_side(&mut self.ask_lookup, &mut self.asks, &mut self.best_ask, &snapshot.asks);
         OrderBook::update_best::<Max>(&self.bids, &mut self.best_bid);
         OrderBook::update_best::<Min>(&self.asks, &mut self.best_ask);
     }
     fn init_side<K>(
         lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
         heap: &mut Box<heapless::BinaryHeap<usize, K, 65536>>,
+        best: &mut Option<usize>,
         snapshot: &Vec<PriceLevel, 65536>)
     where K: heapless::binary_heap::Kind {
             for price_level in snapshot {
+                lookup.clear();
+                heap.clear();
+                *best = None;
                 let level: usize = price_level.level;
                 let _ = lookup.insert(level, price_level.clone()).unwrap();
                 let _ = heap.push(level).unwrap();
@@ -183,6 +187,12 @@ pub struct MultiBook<const S: usize, const T: usize> {
     pub spreads: heapless::Vec<Spread, T>,
     last_spreads: heapless::Vec<Spread, T>,
     arb_count: usize,
+    o25: usize,
+    o20: usize,
+    o15: usize,
+    o10: usize,
+    o05: usize,
+    max: f64,
 }
 
 impl<const S: usize, const T: usize> MultiBook<S, T> {
@@ -203,6 +213,12 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             spreads: spreads,
             last_spreads: last_spreads,
             arb_count: 0,
+            o25: 0,
+            o20: 0,
+            o15: 0,
+            o10: 0,
+            o05: 0,
+            max: 0.0,
         }
     }
 
@@ -243,12 +259,31 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         }
         for i in 0..T {
             let spread = &self.spreads[i];
-            if spread.percentage >= 0.001 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
+            if spread.percentage >= 0.0025 {
+                self.o25 += 1;
+            }
+            if spread.percentage >= 0.002 {
+                self.o20 += 1;
+            }
+            if spread.percentage >= 0.0015 {
+                self.o15 += 1;
+            }
+            if spread.percentage >= 0.001 {
+                self.o10 += 1;
+            }
+            if spread.percentage >= 0.0005 {
+                self.o05 += 1;
+            }
+            if spread.percentage >= self.max {
+                self.max = spread.percentage;
+            }
+            if spread.percentage >= 0.002 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
                 self.arb_count += 1;
                 self.print();
                 return;
             }
+
         }
     }
     fn spread_from_levels(&self, ask: isize, bid: isize, seqs: [i64; 2]) -> Spread {
@@ -264,6 +299,8 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         }
         let date = Local::now();
         println!("Arbitrage opportunity count: {:?}", self.arb_count);
+        println!(">0.2%: {:?}\n>0.15%: {:?}\n>0.1%: {:?}\n>0.05%: {:?}", self.o20, self.o15, self.o10, self.o05);
+        println!("Best seen: {:.5}", self.max * 100.0);
         println!("{}", date.format("%Y-%m-%d %H:%M:%S"));
     }
     fn print_book(&self, book: &OrderBook) {

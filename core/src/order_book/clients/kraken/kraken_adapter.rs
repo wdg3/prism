@@ -32,10 +32,14 @@ impl<'a> KrakenAdapter {
         if c1.is_some() {
             let c = c1.unwrap();
             for bid in c.bids.unwrap().iter() {
-                let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
+                if !bid.republished {
+                    let _ = bids.push(PriceLevel {level: bid.level, amount: bid.amount, sequence: 0});
+                }
             }
             for ask in c.asks.unwrap().iter() {
-                let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
+                if !ask.republished {
+                    let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
+                }
             }
         }
         if c2.is_some() {

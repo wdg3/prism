@@ -79,7 +79,10 @@ impl<'a> KrakenReceiveClient {
                         Err(e) => println!("Kraken parsing error for {:?}: {:?}", msg, e)
                     }
                 },
-                Err(err) => println!("Kraken: {:?}", err)
+                Err(err) => {
+                    println!("Kraken: {:?}\nAttempting reset.", err);
+                    return
+                }
             }
         }
     }

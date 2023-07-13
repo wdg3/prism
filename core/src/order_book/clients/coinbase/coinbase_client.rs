@@ -67,7 +67,10 @@ impl<'a> CoinbaseReceiveClient {
                         },
                     }
                 },
-                Err(err) => println!("Coinbase: {:?}", err)
+                Err(err) => {
+                    println!("Coinbase: {:?}\nAttempting reset.", err);
+                    return;
+                }
             }
         }
     }

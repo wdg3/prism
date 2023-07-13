@@ -77,7 +77,10 @@ impl<'a> GeminiReceiveClient {
 
                     }
                 },
-                Err(err) => println!("Gemini: {:?}", err)
+                Err(err) => {
+                    println!("Gemini: {:?}\nAttempting reset.", err);
+                    return
+                }
             }
         }
     }
