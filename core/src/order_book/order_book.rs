@@ -94,7 +94,9 @@ impl OrderBook {
             }
         }
         //self.print(&start);
-        self.validate();
+        if self.best_bid.is_some() && self.best_ask.is_some() {
+            self.validate();
+        }
 
     }
     fn update_lookup(
@@ -117,7 +119,7 @@ impl OrderBook {
         if heap.len() >= 65536 {
             OrderBook::heap_from_lookup(lookup, heap);
         }
-        while !lookup.contains_key(&heap.peek().unwrap()) {
+        while heap.len() > 0 && !lookup.contains_key(&heap.peek().unwrap()) {
             let _ = heap.pop().unwrap();
         }
         if !(amount.to_bits() == (0.0 as f64).to_bits()) {
@@ -128,7 +130,11 @@ impl OrderBook {
         heap: &Box<heapless::BinaryHeap<usize, K, 65536>>,
         best: &mut Option<usize>)
     where K: heapless::binary_heap::Kind {
-        *best = Some(*heap.peek().unwrap());
+        match heap.peek() {
+            None => *best = None,
+            Some(b) => *best = Some(*b),
+        }
+        //*best = Some(*heap.peek().unwrap());
     }
     fn heap_from_lookup<K>(
         lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
@@ -176,6 +182,7 @@ pub struct MultiBook<const S: usize, const T: usize> {
     pub books: Box<heapless::Vec<OrderBook, S>>,
     pub spreads: heapless::Vec<Spread, T>,
     last_spreads: heapless::Vec<Spread, T>,
+    arb_count: usize,
 }
 
 impl<const S: usize, const T: usize> MultiBook<S, T> {
@@ -195,6 +202,7 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             books: Box::new(books),
             spreads: spreads,
             last_spreads: last_spreads,
+            arb_count: 0,
         }
     }
 
@@ -235,8 +243,9 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         }
         for i in 0..T {
             let spread = &self.spreads[i];
-            if spread.percentage >= 0.0005 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
+            if spread.percentage >= 0.001 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
+                self.arb_count += 1;
                 self.print();
                 return;
             }
@@ -254,6 +263,7 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             println!("{:?}", spread);
         }
         let date = Local::now();
+        println!("Arbitrage opportunity count: {:?}", self.arb_count);
         println!("{}", date.format("%Y-%m-%d %H:%M:%S"));
     }
     fn print_book(&self, book: &OrderBook) {

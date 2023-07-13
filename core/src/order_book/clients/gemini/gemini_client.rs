@@ -50,8 +50,9 @@ impl<'a> GeminiReceiveClient {
                     match res {
                         Message::Snapshot {content: snapshot} => {
                             match snapshot {
-                                Ok((msg, _)) => {
-                                    self.handle_snapshot(msg).await;
+                                Ok((m, _)) => {
+                                    println!("{:?}", msg);
+                                    self.handle_snapshot(m).await;
                                     init = true;
                                 },
                                 Err(_) => {},

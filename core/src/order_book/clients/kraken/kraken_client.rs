@@ -31,7 +31,6 @@ impl<'a> KrakenReceiveClient {
             _ => panic!("Bad pair: {:?}", self.pair),
         };
         let sub_message: String = format!("{{\"event\": \"subscribe\",\"pair\": [{:?}],\"subscription\": {{\"name\": \"book\", \"depth\": 1000}}}}", p).to_string();
-        println!("{:?}", sub_message);
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive().await;
     }

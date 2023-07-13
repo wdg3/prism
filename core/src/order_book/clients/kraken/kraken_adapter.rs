@@ -17,7 +17,7 @@ impl<'a> KrakenAdapter {
     pub async fn new(book: Arc<Mutex<MultiBook<3, 6>>>) -> KrakenAdapter {
         return KrakenAdapter {
             multi_book: book,
-            book_idx: 2,
+            book_idx: 1,
             send_client: KrakenSendClient::new().await,
          }
     }
