@@ -1,8 +1,19 @@
 use serde::{Deserialize, Deserializer, de::{Visitor, SeqAccess}};
+use serde_json_core::de::Error;
+
+pub enum Message {
+    Snapshot { content: Result<(Snapshot, usize), Error> },
+    Update { content: Result<(Update, usize), Error> },
+}
 
 #[derive(Deserialize, Debug, PartialEq)]
-pub struct Content {
-    pub changes: Box<heapless::Vec<Change, 65536>>,
+pub struct Snapshot {
+    pub changes: Box<heapless::Vec<Change, 16384>>,
+}
+
+#[derive(Deserialize, Debug, PartialEq)]
+pub struct Update {
+    pub changes: heapless::Vec<Change, 16>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -18,7 +29,7 @@ pub enum Side {
     Sell,
 }
 
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq)]
 pub struct PriceLevel {
     pub level: usize,
     pub amount: f64,

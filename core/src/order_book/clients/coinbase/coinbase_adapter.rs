@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 use crate::order_book::data_types::{Change, Side};
 use crate::order_book::{order_book::MultiBook, data_types::PriceLevel};
@@ -8,13 +8,13 @@ use crate::order_book;
 use super::{coinbase_client::CoinbaseSendClient, data_types::{Snapshot, Update}};
 
 pub struct CoinbaseAdapter {
-    multi_book: Arc<RwLock<MultiBook<3, 6>>>,
+    multi_book: Arc<Mutex<MultiBook<3, 6>>>,
     send_client: CoinbaseSendClient,
     book_idx: usize,
 }
 
 impl<'a> CoinbaseAdapter {
-    pub async fn new(book: Arc<RwLock<MultiBook<3, 6>>>) -> CoinbaseAdapter {
+    pub async fn new(book: Arc<Mutex<MultiBook<3, 6>>>) -> CoinbaseAdapter {
         return CoinbaseAdapter {
             multi_book: book,
             send_client: CoinbaseSendClient::new().await,
@@ -32,7 +32,9 @@ impl<'a> CoinbaseAdapter {
             let _ = asks.push(PriceLevel {level: ask.level, amount: ask.amount, sequence: 0});
         }
         let initial_book = order_book::data_types::Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
-        self.multi_book.write().await.books[self.book_idx].init(initial_book);
+        let mut guard = self.multi_book.lock().await;
+        guard.books[self.book_idx].init(initial_book);
+        guard.update_spread(self.book_idx);
     }
 
     fn trade() {
@@ -55,7 +57,8 @@ impl<'a> CoinbaseAdapter {
                 }});
         }
         let update = order_book::data_types::Update {product_id: "", time: "", changes: changes};
-        self.multi_book.write().await.books[self.book_idx].update(update);
-        self.multi_book.write().await.update_spread(self.book_idx);
+        let mut guard = self.multi_book.lock().await;
+        guard.books[self.book_idx].update(update);
+        guard.update_spread(self.book_idx);
     }
 }

@@ -235,9 +235,9 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         }
         for i in 0..T {
             let spread = &self.spreads[i];
-            if spread.percentage >= 0.001 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
-                self.print();
+            if spread.percentage >= 0.0005 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
+                //self.print();
                 return;
             }
         }
@@ -247,21 +247,21 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
     }
     pub fn print(&self) {
         println!("{:?}", self.pair);
-        self.print_book(&self.books[0], r"Coinbase");
-        self.print_book(&self.books[1], r"Gemini");
-        self.print_book(&self.books[2], r"Kraken");
+        for book in self.books.iter() {
+            self.print_book(&book);
+        }
         for spread in &*self.spreads {
             println!("{:?}", spread);
         }
         let date = Local::now();
-        println!("{}", date.format("%Y-%m-%d:%H:%M:%S"));
+        println!("{}", date.format("%Y-%m-%d %H:%M:%S"));
     }
-    fn print_book(&self, book: &OrderBook, name: &str) {
+    fn print_book(&self, book: &OrderBook) {
 
         if book.best_bid.is_some() && book.best_ask.is_some() {
             let bid = book.bid_lookup.get(&book.best_bid.unwrap());
             let ask = book.ask_lookup.get(&book.best_ask.unwrap());
-            println!("{:?} best bid: {:?}\n{:?} best ask: {:?}", name, bid, name, ask);
+            println!("{:?} best bid: {:?}\n{:?} best ask: {:?}", book.name, bid, book.name, ask);
         }
     }
     fn get_best(&self, side: Side, book: &OrderBook) -> Option<(usize, i64)> {

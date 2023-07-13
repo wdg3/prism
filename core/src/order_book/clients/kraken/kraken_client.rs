@@ -1,7 +1,7 @@
 use std::{time::Duration, sync::Arc};
 
 use serde_json::Value;
-use tokio::{time::Instant, sync::RwLock};
+use tokio::{time::Instant, sync::Mutex};
 
 use crate::order_book::{clients::{client::WebSocketClient}, order_book::MultiBook};
 
@@ -14,7 +14,7 @@ pub struct KrakenReceiveClient {
 }
 
 impl<'a> KrakenReceiveClient {
-    pub async fn new(multi_book: Arc<RwLock<MultiBook<3, 6>>>, pair: heapless::String<8>) -> KrakenReceiveClient {
+    pub async fn new(multi_book: Arc<Mutex<MultiBook<3, 6>>>, pair: heapless::String<8>) -> KrakenReceiveClient {
         return KrakenReceiveClient {
             adapter: KrakenAdapter::new(multi_book).await,
             client: WebSocketClient::new("wss://ws.kraken.com".to_string()).await,
@@ -44,36 +44,40 @@ impl<'a> KrakenReceiveClient {
             let start = Instant::now();
             match msg {
                 Ok(msg) => {
-                    let res: Value = serde_json::from_str::<Value>(&msg.to_text().unwrap()).unwrap();
-                    match res {
-                        Value::Array(arr) => {
-                            let message: Message;
-                            if arr.len() == 4 {
-                                message = Message::Single {
-                                    content: serde_json::from_value(arr.get(1).unwrap().clone()).unwrap(),
-                                }
-                            } else if arr.len() == 5 {
-                                message = Message::Double {
-                                    content_1: serde_json::from_value(arr.get(1).unwrap().clone()).unwrap(),
-                                    content_2: serde_json::from_value(arr.get(2).unwrap().clone()).unwrap(),
-                                }
-                            } else {
-                                panic!("{:?}, {:?}", arr.len(), arr);
-                            }
-                            let duration = start.elapsed();
-                            count = count + 1;
-                            total = total + duration.as_nanos() as usize;
-                            let avg: f64 = (total as f64) / (count as f64);
-                            //println!("Kraken: message parsed in {:?}", duration);
-                            //println!("Kraken: average message parse time: {:?}", Duration::new(0, avg as u32));
-                            if !init {
-                                self.handle_snapshot(message).await;
-                                init = true;
-                            } else {
-                                self.handle_update(message).await;
+                    match serde_json::from_str::<Value>(&msg.to_text().unwrap()) {
+                        Ok(res) => {
+                            match res {
+                                Value::Array(arr) => {
+                                    let message: Message;
+                                    if arr.len() == 4 {
+                                        message = Message::Single {
+                                            content: serde_json::from_value(arr.get(1).unwrap().clone()).unwrap(),
+                                        }
+                                    } else if arr.len() == 5 {
+                                        message = Message::Double {
+                                            content_1: serde_json::from_value(arr.get(1).unwrap().clone()).unwrap(),
+                                            content_2: serde_json::from_value(arr.get(2).unwrap().clone()).unwrap(),
+                                        }
+                                    } else {
+                                        panic!("{:?}, {:?}", arr.len(), arr);
+                                    }
+                                    if !init {
+                                        self.handle_snapshot(message).await;
+                                        init = true;
+                                    } else {
+                                        self.handle_update(message).await;
+                                        let duration = start.elapsed();
+                                        count = count + 1;
+                                        total = total + duration.as_nanos() as usize;
+                                        let avg: f64 = (total as f64) / (count as f64);
+                                        //println!("Kraken: message handled in {:?}", duration);
+                                        //println!("Kraken: average message handle time for {:?} messages: {:?}", count, Duration::new(0, avg as u32));
+                                    }
+                                },
+                                _ => (),
                             }
                         },
-                        _ => (),
+                        Err(e) => println!("Kraken parsing error for {:?}: {:?}", msg, e)
                     }
                 },
                 Err(err) => println!("Kraken: {:?}", err)

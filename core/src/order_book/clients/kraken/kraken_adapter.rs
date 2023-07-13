@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 use crate::order_book::data_types::{PriceLevel, Snapshot, Change, Side, Update};
 use crate::order_book::order_book::MultiBook;
@@ -8,13 +8,13 @@ use super::data_types::{Message::Single, Message::Double, Message};
 use super::{kraken_client::KrakenSendClient};
 
 pub struct KrakenAdapter {
-    multi_book: Arc<RwLock<MultiBook<3, 6>>>,
+    multi_book: Arc<Mutex<MultiBook<3, 6>>>,
     send_client: KrakenSendClient,
     book_idx: usize,
 }
 
 impl<'a> KrakenAdapter {
-    pub async fn new(book: Arc<RwLock<MultiBook<3, 6>>>) -> KrakenAdapter {
+    pub async fn new(book: Arc<Mutex<MultiBook<3, 6>>>) -> KrakenAdapter {
         return KrakenAdapter {
             multi_book: book,
             book_idx: 2,
@@ -52,7 +52,9 @@ impl<'a> KrakenAdapter {
             }
         }
         let initial_book = Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
-        self.multi_book.write().await.books[self.book_idx].init(initial_book);
+        let mut guard = self.multi_book.lock().await;
+        guard.books[self.book_idx].init(initial_book);
+        guard.update_spread(self.book_idx);
     }
 
     fn trade() {
@@ -100,7 +102,8 @@ impl<'a> KrakenAdapter {
             }
         }
         let update = Update {product_id: "", time: "", changes: changes};
-        self.multi_book.write().await.books[self.book_idx].update(update);
-        self.multi_book.write().await.update_spread(self.book_idx);
+        let mut guard = self.multi_book.lock().await;
+        guard.books[self.book_idx].update(update);
+        guard.update_spread(self.book_idx);
     }
 }
