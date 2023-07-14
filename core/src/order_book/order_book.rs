@@ -277,7 +277,7 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             if spread.percentage >= self.max {
                 self.max = spread.percentage;
             }
-            if spread.percentage >= 0.002 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] && spread.seqs[1] != self.last_spreads[i].seqs[1])) {
+            if spread.percentage >= 0.002 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] || spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
                 self.arb_count += 1;
                 self.print();
@@ -300,7 +300,7 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
         let date = Local::now();
         println!("Arbitrage opportunity count: {:?}", self.arb_count);
         println!(">0.2%: {:?}\n>0.15%: {:?}\n>0.1%: {:?}\n>0.05%: {:?}", self.o20, self.o15, self.o10, self.o05);
-        println!("Best seen: {:.5}", self.max * 100.0);
+        println!("Best seen: {:.5}%", self.max * 100.0);
         println!("{}", date.format("%Y-%m-%d %H:%M:%S"));
     }
     fn print_book(&self, book: &OrderBook) {
