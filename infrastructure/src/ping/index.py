@@ -3,6 +3,7 @@ from constructs import Construct
 from cdktf_cdktf_provider_aws.iam_role import IamRole
 from cdktf_cdktf_provider_aws.iam_role_policy_attachment import IamRolePolicyAttachment
 from cdktf_cdktf_provider_aws.lambda_function import LambdaFunction
+from cdktf_cdktf_provider_aws.lambda_function import LambdaFunctionVpcConfig
 from cdktf_cdktf_provider_aws.lambda_permission import LambdaPermission
 from cdktf_cdktf_provider_aws.s3_bucket import S3Bucket
 from cdktf_cdktf_provider_aws.s3_object import S3Object
@@ -10,7 +11,9 @@ from cdktf_cdktf_provider_aws.scheduler_schedule import SchedulerSchedule, Sched
 from cdktf_cdktf_provider_aws.sqs_queue import SqsQueue
 import json
 
-LAMBDA_ROLE_POLICY: str = '{"Version": "2012-10-17","Statement": [{"Action": "sts:AssumeRole","Principal": {"Service": "scheduler.amazonaws.com"},"Effect": "Allow","Sid": ""},{"Action": "sts:AssumeRole","Principal": {"Service": "lambda.amazonaws.com"},"Effect": "Allow","Sid": ""}]}'
+from vpc.index import VPC, VPCSubnet
+
+LAMBDA_ROLE_POLICY: str = '{"Version": "2012-10-17","Statement": [{"Action": "sts:AssumeRole","Principal": {"Service": "scheduler.amazonaws.com"},"Effect": "Allow","Sid": ""},{"Action": "sts:AssumeRole","Principal": {"Service": "lambda.amazonaws.com"},"Effect": "Allow","Sid": ""},{"Action": "sts:AssumeRole","Principal": {"Service": "ec2.amazonaws.com"},"Effect": "Allow","Sid": ""}]}'
 
 class PingTarget:
     dict: dict[str, str]
@@ -25,7 +28,7 @@ class PingTarget:
 class PingLambda(Construct):
     lambdaFunction: LambdaFunction
 
-    def __init__(self, scope: Construct, name: str, suffix: str, region: str, environment: str) -> None:
+    def __init__(self, scope: Construct, name: str, suffix: str, region: str, environment: str, sg_id: str, subnet_id: str) -> None:
         super().__init__(scope, name + suffix)
         self.name = name
         self.environment = environment
@@ -67,6 +70,11 @@ class PingLambda(Construct):
                                                                                    policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess",
                                                                                    role = role.name)
         
+        vpcRolePolicyAttachment: IamRolePolicyAttachment = IamRolePolicyAttachment(scope,
+                                                                                   name + suffix + "-lambda-vpc-managed-policy",
+                                                                                   policy_arn = "arn:aws:iam::aws:policy/AmazonVPCFullAccess",
+                                                                                   role = role.name)
+        
         self.lambdaFunction: LambdaFunction = LambdaFunction(scope,
                                              name + suffix + "-lambda",
                                              function_name = name + suffix + "-lambda",
@@ -76,7 +84,8 @@ class PingLambda(Construct):
                                              runtime = "python3.9",
                                              architectures = ["arm64"],
                                              role = role.arn,
-                                             source_code_hash = asset.asset_hash)
+                                             source_code_hash = asset.asset_hash,
+                                             vpc_config = LambdaFunctionVpcConfig(security_group_ids=[sg_id], subnet_ids=[subnet_id]))
 
 class PingLambdaScheduler(Construct):
     schedules: list[SchedulerSchedule]

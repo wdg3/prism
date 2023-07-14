@@ -3,26 +3,35 @@ from cdktf import App, TerraformStack
 from cdktf_cdktf_provider_aws.provider import AwsProvider
 from monitoring.ping_metrics import PingMetrics
 from ping.index import PingLambda, PingLambdaScheduler, PingTarget
+from vpc.index import VPC, Subnet
 
 class PingStack(TerraformStack):
-    pingScheduler: PingLambdaScheduler
-    pingLambda: PingLambda
+    pingScheduler: list[PingLambdaScheduler]
+    pingLambdas: list[PingLambda]
     awsProvider: AwsProvider
+    vpc: VPC
 
     def __init__(self, scope: Construct, name: str, suffix: str, region: str, environment: str, targets: list[PingTarget]) -> None:
         super().__init__(scope, name + suffix)
 
         self.awsProvider = AwsProvider(self, "AWS", region=region, profile="default")
+        self.vpc = VPC(self, "vpc", suffix, region, environment)
+        for (i, subnet) in enumerate(self.vpc.subnets):
+            self.pingLambda = PingLambda(self,
+                                         "ping-lambda" + str(i),
+                                         suffix,
+                                         region,
+                                         environment,
+                                         self.vpc.vpc.default_security_group_id,
+                                         subnet.subnet.id)
 
-        self.pingLambda = PingLambda(self, "ping-lambda", suffix, region, environment)
-
-        self.pingSchedulers = PingLambdaScheduler(self,
-                                                  "ping-lambda-scheduler",
-                                                  suffix,
-                                                  region,
-                                                  environment,
-                                                  targets,
-                                                  self.pingLambda)
+            self.pingSchedulers = PingLambdaScheduler(self,
+                                                    "ping-lambda-scheduler-" + str(i),
+                                                    suffix,
+                                                    region,
+                                                    environment,
+                                                    targets,
+                                                    self.pingLambda)
 
 class MonitoringStack(TerraformStack):
     pingMetrics: PingMetrics
@@ -56,6 +65,7 @@ regions = ["us-east-1",
            "ap-southeast-1",
            "ap-northeast-1"]
 
+vpcStacks = []
 pingStacks = []
 for environment in environments:
     for region in regions:
