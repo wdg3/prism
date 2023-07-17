@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::order_book::data_types::{PriceLevel, Snapshot, Change, Side, Update};
-use crate::order_book::order_book::MultiBook;
+use crate::order_book::multi_book::MultiBook;
 use super::data_types::{Message::Single, Message::Double, Message};
 use super::{kraken_client::KrakenSendClient};
 

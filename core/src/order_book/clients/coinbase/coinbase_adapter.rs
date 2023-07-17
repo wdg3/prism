@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::order_book::data_types::{Change, Side};
-use crate::order_book::{order_book::MultiBook, data_types::PriceLevel};
+use crate::order_book::{multi_book::MultiBook, data_types::PriceLevel};
 use crate::order_book;
 use super::{coinbase_client::CoinbaseSendClient, data_types::{Snapshot, Update}};
 

@@ -3,7 +3,7 @@ use std::{time::Duration, sync::Arc};
 use serde_json::Value;
 use tokio::{time::Instant, sync::Mutex};
 
-use crate::order_book::{clients::{client::WebSocketClient}, order_book::MultiBook};
+use crate::order_book::{clients::{client::WebSocketClient}, multi_book::MultiBook};
 
 use super::{kraken_adapter::KrakenAdapter, data_types::{Message}};
 

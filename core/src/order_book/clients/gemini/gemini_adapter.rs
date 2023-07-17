@@ -5,7 +5,7 @@ use tokio::time::Instant;
 
 use crate::order_book;
 use crate::order_book::data_types::Change;
-use crate::order_book::{order_book::MultiBook, data_types::PriceLevel};
+use crate::order_book::{multi_book::MultiBook, data_types::PriceLevel};
 use super::data_types::{Update, Snapshot, Side};
 
 use super::gemini_client::GeminiSendClient;

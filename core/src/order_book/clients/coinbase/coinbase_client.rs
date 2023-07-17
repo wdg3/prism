@@ -2,7 +2,7 @@ use std::{time::Duration, sync::Arc};
 
 use tokio::{time::Instant, sync::Mutex};
 
-use crate::order_book::{clients::client::WebSocketClient, order_book::MultiBook};
+use crate::order_book::{clients::client::WebSocketClient, multi_book::MultiBook};
 
 use super::{coinbase_adapter::CoinbaseAdapter, data_types::{Snapshot, Message}, data_types::Update};
 

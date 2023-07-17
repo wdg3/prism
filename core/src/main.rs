@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use crate::order_book::clients::coinbase::coinbase_client::CoinbaseReceiveClient;
 use crate::order_book::clients::gemini::gemini_client::GeminiReceiveClient;
 use crate::order_book::clients::kraken::kraken_client::KrakenReceiveClient;
-use crate::order_book::order_book::MultiBook;
+use crate::order_book::multi_book::MultiBook;
 
 const NUM_EXCHANGES: usize = 3;
 const NUM_EXCHANGE_PAIRS: usize = 2 * (NUM_EXCHANGES * (NUM_EXCHANGES - 1)) / 2;
