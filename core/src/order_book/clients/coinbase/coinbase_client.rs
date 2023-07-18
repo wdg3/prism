@@ -52,6 +52,7 @@ impl<'a> CoinbaseReceiveClient {
                                 },
                                 "l2update" => {
                                     self.handle_update(&msg.to_text().unwrap(), start).await;
+                                    println!("Sent: {:?}, handled: {:?}", message.time, chrono::Utc::now());
                                     let duration = start.elapsed();
                                     count = count + 1;
                                     total = total + duration.as_nanos() as usize;

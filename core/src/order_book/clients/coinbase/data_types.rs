@@ -4,6 +4,7 @@ use serde::{Deserialize, Deserializer, de::{Visitor, SeqAccess}};
 pub struct Message<'a> {
     #[serde(rename = "type")]
     pub msg_type: &'a str,
+    pub time: &'a str,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
