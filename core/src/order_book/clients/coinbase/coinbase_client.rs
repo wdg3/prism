@@ -65,7 +65,7 @@ impl<'a> CoinbaseReceiveClient {
                                     match elapsed {
                                         Ok(e) => {
                                             count = count + 1;
-                                            total = total + e.as_micros() as usize;
+                                            total = total + e.as_nanos() as usize;
                                             let avg: f64 = (total as f64) / (count as f64);
                                             if count % 1000 == 1 {
                                                 println!("Avg. sent to handled time: {:?}", Duration::new(0, avg as u32));
