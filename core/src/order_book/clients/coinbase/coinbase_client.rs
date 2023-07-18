@@ -1,5 +1,6 @@
-use std::{time::Duration, sync::Arc};
+use std::{time::Duration, sync::Arc, str::FromStr};
 
+use chrono::Utc;
 use tokio::{time::Instant, sync::Mutex};
 
 use crate::order_book::{clients::client::WebSocketClient, multi_book::MultiBook};
@@ -52,16 +53,26 @@ impl<'a> CoinbaseReceiveClient {
                                 },
                                 "l2update" => {
                                     self.handle_update(&msg.to_text().unwrap(), start).await;
-                                    println!("Sent: {:?}, handled: {:?}", message.time, chrono::Utc::now());
                                     let duration = start.elapsed();
-                                    count = count + 1;
-                                    total = total + duration.as_nanos() as usize;
-                                    let avg: f64 = (total as f64) / (count as f64);
                                     //println!("Coinbase: message handled in {:?}", duration);
                                     //println!("Coinbase: average message handle time for {:?} messages: {:?}", count, Duration::new(0, avg as u32));
                                 },
                                 "match" => {
                                     self.handle_match(&msg.to_text().unwrap()).await;
+                                    let now = Utc::now();
+                                    let sent = chrono::DateTime::<Utc>::from_str(message.time).unwrap();
+                                    let elapsed = (now - sent).to_std();
+                                    match elapsed {
+                                        Ok(e) => {
+                                            count = count + 1;
+                                            total = total + e.as_micros() as usize;
+                                            let avg: f64 = (total as f64) / (count as f64);
+                                            if count % 1000 == 1 {
+                                                println!("Avg. sent to handled time: {:?}", Duration::new(0, avg as u32));
+                                            }
+                                        },
+                                        Err(_) => (),
+                                    }
                                 },
                                 "last_match" => (),
                                 other => println!("Unknown message type {:?}: {:?}", other, msg),
