@@ -36,6 +36,27 @@ pub enum Side {
     Sell,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Match {
+    pub side: Side,
+    #[serde(deserialize_with="match_amount")]
+    pub size: f64,
+    #[serde(deserialize_with="match_price")]
+    pub price: usize,
+}
+
+pub fn match_price<'de, D>(deserializer: D) -> Result<usize, D::Error>
+where D: Deserializer<'de> {
+    let input = heapless::String::<16>::deserialize(deserializer).unwrap();
+    return Ok((input.parse::<f64>().unwrap() * 100.0) as usize)
+}
+
+pub fn match_amount<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where D: Deserializer<'de> {
+    let input = heapless::String::<16>::deserialize(deserializer).unwrap();
+    return Ok(input.parse::<f64>().unwrap())
+}
+
 impl<'de> Deserialize<'de> for PriceLevel {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where

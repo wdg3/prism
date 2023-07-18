@@ -4,7 +4,7 @@ use tokio::{time::Instant, sync::Mutex};
 
 use crate::order_book::{clients::client::WebSocketClient, multi_book::MultiBook};
 
-use super::{coinbase_adapter::CoinbaseAdapter, data_types::{Snapshot, Message}, data_types::Update};
+use super::{coinbase_adapter::CoinbaseAdapter, data_types::{Snapshot, Message, Change, Match}, data_types::Update};
 
 pub struct CoinbaseReceiveClient {
     adapter: CoinbaseAdapter,
@@ -29,7 +29,7 @@ impl<'a> CoinbaseReceiveClient {
             "BTC-USDT" => "BTC-USDT",
             _ => panic!("Bad pair: {:?}", self.pair),
         };
-        let sub_message: String = format!("{{\"type\":\"subscribe\",\"product_ids\":[{:?}],\"channels\":[\"level2\"]}}", p).to_string();
+        let sub_message: String = format!("{{\"type\":\"subscribe\",\"product_ids\":[{:?}],\"channels\":[\"level2\",\"matches\"]}}", p).to_string();
         self.client.send(tokio_tungstenite::tungstenite::protocol::Message::Text(sub_message)).await;
         self.receive().await;
     }
@@ -59,6 +59,10 @@ impl<'a> CoinbaseReceiveClient {
                                     //println!("Coinbase: message handled in {:?}", duration);
                                     //println!("Coinbase: average message handle time for {:?} messages: {:?}", count, Duration::new(0, avg as u32));
                                 },
+                                "match" => {
+                                    self.handle_match(&msg.to_text().unwrap()).await;
+                                },
+                                "last_match" => (),
                                 other => println!("Unknown message type {:?}: {:?}", other, msg),
                             }
                         },
@@ -94,6 +98,15 @@ impl<'a> CoinbaseReceiveClient {
             Err(err) => println!("Error parsing: {:?} for {:?}", err, update),
         }
         start.elapsed()
+    }
+    async fn handle_match(&mut self, msg: &str) {
+        let result = serde_json_core::from_str::<Match>(msg);
+        match result {
+            Ok((update, _)) => {
+                self.adapter.match_(update).await
+            },
+            Err(err) => println!("Error parsing: {:?} for {:?}", err, msg),
+        }
     }
 }
 

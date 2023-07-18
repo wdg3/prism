@@ -51,37 +51,43 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
     }
 
     pub fn update_spread(&mut self, book_idx: usize) {
+        let price = self.books[book_idx].theoretical_price;
         for i in 0..S {
             if i != book_idx {
-                let forward_buy = self.get_best(Side::Sell, &self.books[book_idx]);
-                let forward_sell = self.get_best(Side::Buy, &self.books[i]);
-                let reverse_buy = self.get_best(Side::Sell, &self.books[i]);
-                let reverse_sell = self.get_best(Side::Buy, &self.books[book_idx]);
-                if forward_buy.is_some() && forward_sell.is_some() {
-                    let spread = self.spread_from_levels(
-                        forward_buy.unwrap().0 as isize, 
-                        forward_sell.unwrap().0 as isize,
-                        [forward_buy.unwrap().1, forward_sell.unwrap().1]);
+                let b = self.books[i].best_bid;
+                let a = self.books[i].best_ask;
+                if b.is_some() && a.is_some() {
+                    let buy_spread = self.spread_from_levels(
+                        a.unwrap() as isize,
+                        price as isize,
+                        [
+                            self.get_best(Side::Sell, &self.books[i]).unwrap().1,
+                            self.get_best(Side::Buy, &self.books[book_idx]).unwrap().1
+                        ]
+                    );
+                    let sell_spread = self.spread_from_levels(
+                        price as isize,
+                        b.unwrap() as isize,
+                        [
+                            self.get_best(Side::Sell, &self.books[book_idx]).unwrap().1,
+                            self.get_best(Side::Buy, &self.books[i]).unwrap().1
+                        ]
+                    );
                     let mut spread_idx = (book_idx * S) + i;
                     if i < book_idx {
                         spread_idx -= book_idx;
                     } else {
                         spread_idx -= book_idx + 1;
                     }
-                    self.spreads[spread_idx] = spread;
-                }
-                if reverse_buy.is_some() && reverse_sell.is_some() {
-                    let spread = self.spread_from_levels(
-                        reverse_buy.unwrap().0 as isize, 
-                        reverse_sell.unwrap().0 as isize,
-                        [reverse_buy.unwrap().1, reverse_sell.unwrap().1]);
+                    self.spreads[spread_idx] = buy_spread;
+                    
                     let mut spread_idx = (i * S) + book_idx;
                     if book_idx < i {
                         spread_idx -= i;
                     } else {
                         spread_idx -= i + 1;
                     }
-                    self.spreads[spread_idx] = spread;
+                    self.spreads[spread_idx] = sell_spread;
                 }
             }
         }
@@ -105,13 +111,12 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             if spread.percentage >= self.max {
                 self.max = spread.percentage;
             }
-            if spread.percentage >= 0.002 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] || spread.seqs[1] != self.last_spreads[i].seqs[1])) {
+            if spread.percentage >= 0.001 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] || spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
                 self.arb_count += 1;
                 self.print();
                 return;
             }
-
         }
     }
     fn spread_from_levels(&self, ask: isize, bid: isize, seqs: [i64; 2]) -> Spread {
@@ -139,6 +144,8 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             let bid_hs = book.bids.len();
             let ask_hs = book.asks.len();
             println!("{:?} best bid: {:?}\n{:?} best ask: {:?}", book.name, bid, book.name, ask);
+            println!("Book pressure: {:?}", book.pressure);
+            println!("Theoretical price: {:?}", book.theoretical_price);
             println!("Bid heap: {:?} elements\nAsk heap: {:?} elements", bid_hs, ask_hs);
         }
     }

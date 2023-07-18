@@ -2,7 +2,7 @@ use std::time::Duration;
 use heapless::{binary_heap::{Max, Min}, Vec};
 use tokio::time::Instant;
 
-use super::data_types::{Update, Side, PriceLevel, Snapshot};
+use super::data_types::{Update, Side, PriceLevel, Snapshot, Match};
 
 #[derive(Default)]
 pub struct OrderBook {
@@ -14,6 +14,14 @@ pub struct OrderBook {
     pub ask_lookup: Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
     pub best_bid: Option<usize>,
     pub best_ask: Option<usize>,
+    pub avg_bid: f64,
+    tot_bid: f64,
+    num_bids: usize,
+    pub avg_ask: f64,
+    tot_ask: f64,
+    num_asks: usize,
+    pub pressure: f64,
+    pub theoretical_price: usize,
     average_update: f64,
     num_updates: usize,
     count: i64,
@@ -52,6 +60,14 @@ impl OrderBook {
             ask_lookup: Box::new(heapless::FnvIndexMap::new()),
             best_bid: Option::None,
             best_ask: Option::None,
+            avg_ask: 0.0,
+            avg_bid: 0.0,
+            tot_ask: 0.0,
+            tot_bid: 0.0,
+            num_asks: 0,
+            num_bids: 0,
+            pressure: 0.0,
+            theoretical_price: 0,
             average_update: 0.0,
             num_updates: 0,
             count: 0,
@@ -98,9 +114,10 @@ impl OrderBook {
         }
         //self.print(&start);
         if self.best_bid.is_some() && self.best_ask.is_some() {
+            self.update_pressure();
             self.validate();
         }
-
+        self.theoretical_price = 0;
     }
     fn update_lookup(
         lookup: &mut Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
@@ -135,9 +152,10 @@ impl OrderBook {
     where K: heapless::binary_heap::Kind {
         match heap.peek() {
             None => *best = None,
-            Some(b) => *best = Some(*b),
+            Some(b) => {
+                *best = Some(*b)
+            },
         }
-        //*best = Some(*heap.peek().unwrap());
     }
     fn heap_from_lookup<K>(
         lookup: &Box<heapless::FnvIndexMap<usize, PriceLevel, 65536>>,
@@ -148,13 +166,44 @@ impl OrderBook {
             let _ = heap.push(v.level);
         });
     }
+    fn update_pressure(&mut self) {
+        let bid_level = self.best_bid.unwrap();
+        let ask_level = self.best_ask.unwrap();
+        let bid_amount = self.bid_lookup.get(&bid_level).unwrap().amount;
+        let ask_amount = self.ask_lookup.get(&ask_level).unwrap().amount;
+        self.num_bids += 1;
+        self.num_asks += 1;
+        self.tot_bid += bid_amount;
+        self.tot_ask += ask_amount;
+        self.avg_bid = self.tot_bid / (self.num_bids as f64);
+        self.avg_ask = self.tot_ask / (self.num_asks as f64);
+        self.pressure = ((bid_amount * ask_level as f64) + (ask_amount * bid_level as f64)) / (bid_amount + ask_amount);
+    }
+    pub fn update_impulse(&mut self, match_: Match) {
+        match match_.side {
+            Side::Buy => {
+                let delta = self.best_ask.unwrap() as f64 - self.best_bid.unwrap() as f64;
+                self.theoretical_price = (self.pressure + ((delta * match_.size) / (self.avg_bid + self.avg_ask))) as usize;
+            },
+            Side::Sell => {
+                let delta = self.best_bid.unwrap() as f64 - self.best_ask.unwrap() as f64;
+                self.theoretical_price = (self.pressure + ((delta * match_.size) / (self.avg_bid + self.avg_ask))) as usize;
+            },
+        }
+        /*if self.theoretical_price > self.best_ask.unwrap() || self.theoretical_price < self.best_bid.unwrap() {
+            println!("Best bid: {:?}\nBest ask: {:?}", self.bid_lookup.get(self.best_bid.as_ref().unwrap()), self.ask_lookup.get(self.best_ask.as_ref().unwrap()));
+            println!("Book pressure: {:?}", self.pressure);
+            println!("Theoretical price: {:?}", self.theoretical_price);
+        }*/
+    }
     fn print(&mut self, start: &Instant) {
         let duration = start.elapsed();
         self.num_updates += 1;
         self.average_update = ((self.average_update * ((self.num_updates - 1) as f64)) + (duration.as_nanos() as f64)) / (self.num_updates as f64);
-        println!("Order book updated in {:?}", duration);
+        //println!("Order book updated in {:?}", duration);
         println!("Average update time: {:?}", Duration::new(0, self.average_update as u32));
         println!("Best bid: {:?}\nBest ask: {:?}", self.bid_lookup.get(self.best_bid.as_ref().unwrap()), self.ask_lookup.get(self.best_ask.as_ref().unwrap()));
+        println!("Book pressure: {:?}", self.pressure);
         println!("Bid lookup size: {:?}, ask lookup size: {:?}", self.bid_lookup.len(), self.ask_lookup.len());
         println!("Bid heap size: {:?}, ask heap size: {:?}", self.bids.len(), self.asks.len());
     }

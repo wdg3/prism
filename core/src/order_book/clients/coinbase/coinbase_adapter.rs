@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use crate::order_book::data_types::{Change, Side};
 use crate::order_book::{multi_book::MultiBook, data_types::PriceLevel};
 use crate::order_book;
+use super::data_types::Match;
 use super::{coinbase_client::CoinbaseSendClient, data_types::{Snapshot, Update}};
 
 pub struct CoinbaseAdapter {
@@ -34,7 +35,7 @@ impl<'a> CoinbaseAdapter {
         let initial_book = order_book::data_types::Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
         let mut guard = self.multi_book.lock().await;
         guard.books[self.book_idx].init(initial_book);
-        guard.update_spread(self.book_idx);
+        //guard.update_spread(self.book_idx);
     }
 
     fn trade() {
@@ -59,6 +60,17 @@ impl<'a> CoinbaseAdapter {
         let update = order_book::data_types::Update {product_id: "", time: "", changes: changes};
         let mut guard = self.multi_book.lock().await;
         guard.books[self.book_idx].update(update);
+        //guard.update_spread(self.book_idx);
+    }
+
+    pub async fn match_(&mut self, match_: Match) {
+        let side = match match_.side {
+            super::data_types::Side::Buy => Side::Buy,
+            super::data_types::Side::Sell => Side::Sell,
+        };
+        let new = order_book::data_types::Match {side: side, size: match_.size, price: match_.price};
+        let mut guard = self.multi_book.lock().await;
+        guard.books[self.book_idx].update_impulse(new);
         guard.update_spread(self.book_idx);
     }
 }

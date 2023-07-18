@@ -25,6 +25,13 @@ pub struct Change {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Match {
+    pub side: Side,
+    pub size: f64,
+    pub price: usize,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum Side {
     Buy,
     Sell,
