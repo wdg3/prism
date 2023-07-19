@@ -14,7 +14,6 @@ async fn main() {
     let tcp = TcpStream::connect("ec2-44-199-208-158.compute-1.amazonaws.com:8080").await.expect("Failed to connect");
     let (mut book_client, _) = client_async("wss://ec2-44-199-208-158.compute-1.amazonaws.com:8080", tcp).await.expect("Client failed to connect");
     println!("Connected!");
-    book_client.send(Message::Text("Hello, World!".to_string())).await.expect("Client failed to send message");
     let mut binance_client = WebSocketClient::new("wss://stream.binance.com/ws/btcusdt@aggTrade".to_string()).await;
     let binance_sub: String = format!("{{\"method\": \"SUBSCRIBE\",\"params\": [\"btcusdt@aggTrade\"],\"id\": 1}}").to_string();
     let mut count = 0;
@@ -34,7 +33,7 @@ async fn main() {
         match e {
             None => (),
             Some(e) => {
-                let _ = book_client.send(Message::Binary(e.to_be_bytes().to_vec()));
+                let _ = book_client.send(Message::Binary(e.to_be_bytes().to_vec())).await;
                 let now = Utc::now();
                 let dur = now.timestamp_millis() - e;
                 println!("Sent to handled time: {:?}", dur);

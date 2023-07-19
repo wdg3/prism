@@ -2,6 +2,7 @@ mod order_book;
 
 use std::sync::Arc;
 use std::time::Duration;
+use chrono::Utc;
 use futures_util::{future, TryStreamExt, StreamExt, SinkExt};
 
 use order_book::clients::bitstamp::bitstamp_client::BitstampReceiveClient;
@@ -110,12 +111,21 @@ async fn main() {
         }
     });
     let binance_task = runtime.spawn(async move {
+        let mut total = 0;
+        let mut count = 0;
         let addr = "0.0.0.0:8080".to_string();
         let listener = TcpListener::bind(&addr).await.unwrap();
         let (connection, _) = listener.accept().await.expect("No connections to accept");
         let mut stream = accept_async(connection).await.expect("Failed to accept connection");
         while let Some(msg) = stream.next().await {
-            println!("{:?}", i64::from_be_bytes(msg.unwrap().into_data().try_into().unwrap()));
+            let e = i64::from_be_bytes(msg.unwrap().into_data().try_into().unwrap());
+            let now = Utc::now();
+            let dur = now.timestamp_millis() - e;
+            println!("Binance sent to handled time: {:?}", dur);
+            count = count + 1;
+            total = total + dur;
+            let avg: f64 = (total as f64) / (count as f64);
+            println!("Binance avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));  
         }
     });
     binance_task.await.unwrap();
