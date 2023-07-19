@@ -110,12 +110,12 @@ async fn main() {
         }
     });
     let binance_task = runtime.spawn(async move {
-        let addr = "127.0.0.1:8080".to_string();
+        let addr = "0.0.0.0:8080".to_string();
         let listener = TcpListener::bind(&addr).await.unwrap();
         let (connection, _) = listener.accept().await.expect("No connections to accept");
         let mut stream = accept_async(connection).await.expect("Failed to accept connection");
         while let Some(msg) = stream.next().await {
-            println!("{:?}", msg);
+            println!("{:?}", i64::from_be_bytes(msg.unwrap().into_data().try_into().unwrap()));
         }
     });
     binance_task.await.unwrap();

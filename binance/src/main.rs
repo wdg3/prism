@@ -11,8 +11,8 @@ use tokio_tungstenite::{tungstenite::protocol::Message, client_async};
 
 #[tokio::main]
 async fn main() {
-    let tcp = TcpStream::connect("127.0.0.1:8080").await.expect("Failed to connect");
-    let (mut book_client, _) = client_async("ws://127.0.0.1:8080", tcp).await.expect("Client failed to connect");
+    let tcp = TcpStream::connect("ec2-44-199-208-158.compute-1.amazonaws.com:8080").await.expect("Failed to connect");
+    let (mut book_client, _) = client_async("wss://ec2-44-199-208-158.compute-1.amazonaws.com:8080", tcp).await.expect("Client failed to connect");
     println!("Connected!");
     book_client.send(Message::Text("Hello, World!".to_string())).await.expect("Client failed to send message");
     let mut binance_client = WebSocketClient::new("wss://stream.binance.com/ws/btcusdt@aggTrade".to_string()).await;
@@ -34,6 +34,7 @@ async fn main() {
         match e {
             None => (),
             Some(e) => {
+                let _ = book_client.send(Message::Binary(e.to_be_bytes().to_vec()));
                 let now = Utc::now();
                 let dur = now.timestamp_millis() - e;
                 println!("Sent to handled time: {:?}", dur);
