@@ -2,8 +2,10 @@ mod order_book;
 
 use std::sync::Arc;
 use std::time::Duration;
+use futures_util::{StreamExt, SinkExt};
 
 use order_book::clients::bitstamp::bitstamp_client::BitstampReceiveClient;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::runtime::Builder;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -106,10 +108,34 @@ async fn main() {
             }
         }
     });
+    let binance_task = runtime.spawn(async move {
+        let addr = "127.0.0.1:6969".to_string();
+        let socket = TcpListener::bind(&addr).await;
+        let listener = socket.expect("Failed to bind");
+        println!("Listening on: {}", addr);
+        let (stream, _) = listener.accept().await.unwrap();
+        accept_connection(stream).await;
+    });
     for pair_task in pair_task_vec {
         pair_task.await.unwrap();
     }
     monitor_task.await.unwrap();
+    binance_task.await.unwrap();
+}
+
+async fn accept_connection(stream: TcpStream) {
+    let addr = stream.peer_addr().expect("connected streams should have a peer address");
+    println!("Peer address: {}", addr);
+
+    let mut ws_stream = tokio_tungstenite::accept_async(stream)
+        .await
+        .expect("Error during the websocket handshake occurred");
+
+    println!("New WebSocket connection: {}", addr);
+
+    while let Some(msg) = ws_stream.next().await {
+        println!("{:?}", msg);
+    }
 }
 
     /*let binance_task = tokio::spawn(async move {
