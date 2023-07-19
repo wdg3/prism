@@ -113,7 +113,7 @@ async fn main() {
 }
 
     /*let binance_task = tokio::spawn(async move {
-        let mut binance_client = WebSocketClient::new("wss://testnet.binance.vision/ws-api/v3".to_string()).await;
+        let mut binance_client = WebSocketClient::new("wss://data-stream.binance.vision/ws-api/v3".to_string()).await;
         let binance_sub: String = "{\"method\": \"SUBSCRIBE\",\"params\": {\"symbol\": \"ethusd@aggTrade\"},\"id\": 1}".to_string();
         binance_client.send(Message::Text(binance_sub)).await;
         binance_client.receive().await;
