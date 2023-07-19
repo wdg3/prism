@@ -1,0 +1,15 @@
+[package]
+name = "prism"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio-tungstenite = { version = "*", features = ["native-tls"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "*"
+futures-channel = "*"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "*"
+serde-json-core = "0.5.0"
+heapless = { version = "*", features = ["serde"] }
+chrono = "0.4"
