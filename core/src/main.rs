@@ -2,13 +2,14 @@ mod order_book;
 
 use std::sync::Arc;
 use std::time::Duration;
-use futures_util::{StreamExt, SinkExt};
+use futures_util::{future, TryStreamExt, StreamExt, SinkExt};
 
 use order_book::clients::bitstamp::bitstamp_client::BitstampReceiveClient;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::runtime::Builder;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tokio_tungstenite::accept_async;
 
 use crate::order_book::clients::coinbase::coinbase_client::CoinbaseReceiveClient;
 use crate::order_book::clients::gemini::gemini_client::GeminiReceiveClient;
@@ -109,38 +110,17 @@ async fn main() {
         }
     });
     let binance_task = runtime.spawn(async move {
-        let addr = "127.0.0.1:6969".to_string();
-        let socket = TcpListener::bind(&addr).await;
-        let listener = socket.expect("Failed to bind");
-        println!("Listening on: {}", addr);
-        let (stream, _) = listener.accept().await.unwrap();
-        accept_connection(stream).await;
+        let addr = "127.0.0.1:8080".to_string();
+        let listener = TcpListener::bind(&addr).await.unwrap();
+        let (connection, _) = listener.accept().await.expect("No connections to accept");
+        let mut stream = accept_async(connection).await.expect("Failed to accept connection");
+        while let Some(msg) = stream.next().await {
+            println!("{:?}", msg);
+        }
     });
+    binance_task.await.unwrap();
     for pair_task in pair_task_vec {
         pair_task.await.unwrap();
     }
     monitor_task.await.unwrap();
-    binance_task.await.unwrap();
 }
-
-async fn accept_connection(stream: TcpStream) {
-    let addr = stream.peer_addr().expect("connected streams should have a peer address");
-    println!("Peer address: {}", addr);
-
-    let mut ws_stream = tokio_tungstenite::accept_async(stream)
-        .await
-        .expect("Error during the websocket handshake occurred");
-
-    println!("New WebSocket connection: {}", addr);
-
-    while let Some(msg) = ws_stream.next().await {
-        println!("{:?}", msg);
-    }
-}
-
-    /*let binance_task = tokio::spawn(async move {
-        let mut binance_client = WebSocketClient::new("wss://data-stream.binance.vision/ws-api/v3".to_string()).await;
-        let binance_sub: String = "{\"method\": \"SUBSCRIBE\",\"params\": {\"symbol\": \"ethusd@aggTrade\"},\"id\": 1}".to_string();
-        binance_client.send(Message::Text(binance_sub)).await;
-        binance_client.receive().await;
-    });*/
