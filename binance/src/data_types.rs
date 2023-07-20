@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct Message {
     #[serde(rename = "e")]
     pub event_type: Option<heapless::String<16>>,
+    #[serde(rename = "s")]
+    pub pair: Option<heapless::String<8>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
