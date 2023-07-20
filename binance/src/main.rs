@@ -11,11 +11,11 @@ use tokio_tungstenite::{tungstenite::protocol::Message, client_async};
 
 #[tokio::main]
 async fn main() {
-    let tcp = TcpStream::connect("ec2-44-199-208-158.compute-1.amazonaws.com:8080").await.expect("Failed to connect");
-    let (mut book_client, _) = client_async("wss://ec2-44-199-208-158.compute-1.amazonaws.com:8080", tcp).await.expect("Client failed to connect");
+    let tcp = TcpStream::connect("ip-207-2-15-83.ec2.internal:6969").await.expect("Failed to connect");
+    let (mut book_client, _) = client_async("wss://ip-207-2-15-83.ec2.internal:6969", tcp).await.expect("Client failed to connect");
     println!("Connected!");
     let mut binance_client = WebSocketClient::new("wss://stream.binance.com/ws/btcusdt@aggTrade".to_string()).await;
-    let binance_sub: String = format!("{{\"method\": \"SUBSCRIBE\",\"params\": [\"btcusdt@aggTrade\"],\"id\": 1}}").to_string();
+    let binance_sub: String = format!("{{\"method\": \"SUBSCRIBE\",\"params\": [\"btcusdt@aggTrade\", \"btcusdt@bookTicker\"],\"id\": 1}}").to_string();
     let mut count = 0;
     let mut total = 0;
     binance_client.send(Message::Text(binance_sub)).await;
@@ -28,7 +28,10 @@ async fn main() {
             Ok((t, _)) => {
                 Some(t.sent)
             },
-            Err(e) => None, 
+            Err(_) => {
+                println!("{:?}", trade);
+                None
+            }, 
         };
         match e {
             None => (),

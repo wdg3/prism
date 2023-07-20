@@ -113,7 +113,7 @@ async fn main() {
     let binance_task = runtime.spawn(async move {
         let mut total = 0;
         let mut count = 0;
-        let addr = "0.0.0.0:8080".to_string();
+        let addr = "0.0.0.0:6969".to_string();
         let listener = TcpListener::bind(&addr).await.unwrap();
         let (connection, _) = listener.accept().await.expect("No connections to accept");
         let mut stream = accept_async(connection).await.expect("Failed to accept connection");
