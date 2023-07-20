@@ -1,7 +1,7 @@
 use futures_util::{StreamExt, SinkExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Error;
-use tokio_tungstenite::{ MaybeTlsStream, WebSocketStream, connect_async, connect_async_with_config};
+use tokio_tungstenite::{ MaybeTlsStream, WebSocketStream, connect_async_with_config};
 use tokio_tungstenite::tungstenite::protocol::{Message, WebSocketConfig};
 
 pub struct FIXClient {

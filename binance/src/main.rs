@@ -1,13 +1,13 @@
 mod client;
 mod data_types;
 use client::WebSocketClient;
-use data_types::Trade;
+use data_types::{Trade, BookUpdate, OutboundMessage};
 use chrono::Utc;
 use futures_util::SinkExt;
-use tokio::net::TcpSocket;
+use tokio::net::{TcpSocket, TcpStream};
 use std::time::Duration;
-use serde_json::Value;
-use tokio_tungstenite::{tungstenite::protocol::Message, client_async};
+//use serde_json::Value;
+use tokio_tungstenite::{tungstenite::protocol::Message, client_async, WebSocketStream};
 
 #[tokio::main]
 async fn main() {
@@ -26,29 +26,59 @@ async fn main() {
         //let value = serde_json::from_str::<Value>(&msg.unwrap().to_text().unwrap()).unwrap();
         //let event_time = value.get("E");
         //let trade_time = value.get("T");
-        let trade = serde_json_core::from_str::<Trade>(&msg.unwrap().to_text().unwrap());
-        println!("{:?}", trade);
-        let e = match trade {
-            Ok((t, _)) => {
-                t.sent
-            },
-            Err(_) => {
-                //println!("{:?}", trade);
-                None
-            }, 
-        };
-        match e {
-            None => (),
-            Some(e) => {
-                let _ = book_client.send(Message::Binary(e.to_be_bytes().to_vec())).await;
+        let raw = heapless::String::<256>::from(msg.unwrap().to_text().unwrap());
+        let (message, _) = serde_json_core::from_str::<data_types::Message>(&raw).unwrap();
+        println!("{:?}", message);
+        match message.event_type {
+            Some(_) => {
+                let (trade, _) = serde_json_core::from_str::<Trade>(&raw).unwrap();
+                let sent = trade.sent;
+                handle_trade(trade, &mut book_client);
                 let now = Utc::now();
-                let dur = now.timestamp_millis() - e;
+                let dur = now.timestamp_millis() - sent;
                 println!("Sent to handled time: {:?}", dur);
                 count = count + 1;
                 total = total + dur;
                 let avg: f64 = (total as f64) / (count as f64);
-                println!("Avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));   
-            }
-        }
+                println!("Avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));  
+            },
+            None => {
+                let (update, _) = serde_json_core::from_str::<BookUpdate>(&raw).unwrap();
+                handle_book_update(update, &mut book_client);
+            }, 
+        };
     }
+}
+
+
+fn handle_trade(trade: Trade, client: &mut WebSocketStream<TcpStream>) {
+
+    let out = OutboundMessage {
+        message_type: heapless::String::<8>::from("trade"),
+        pair: trade.pair,
+        sent: Some(trade.sent),
+        price: Some(trade.price),
+        amount: Some(trade.amount),
+        bid_level: None,
+        ask_level: None,
+        bid_amount: None,
+        ask_amount: None,
+    };
+    let _ = client.send(Message::Text(serde_json_core::to_string::<OutboundMessage, 256>(&out).unwrap().to_string()));
+
+}
+
+fn handle_book_update(update: BookUpdate, client: &mut WebSocketStream<TcpStream>) {
+    let out = OutboundMessage {
+        message_type: heapless::String::<8>::from("book"),
+        pair: update.pair,
+        sent: None,
+        price: None,
+        amount: None,
+        bid_level: Some(update.bid_level),
+        ask_level: Some(update.ask_level),
+        bid_amount: Some(update.bid_amount),
+        ask_amount: Some(update.ask_amount),
+    };
+    let _ = client.send(Message::Text(serde_json_core::to_string::<OutboundMessage, 128>(&out).unwrap().to_string()));
 }

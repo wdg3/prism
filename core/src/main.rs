@@ -5,6 +5,7 @@ use std::time::Duration;
 use chrono::Utc;
 use futures_util::{future, TryStreamExt, StreamExt, SinkExt};
 
+use order_book::clients::binance::binance_client::BinanceReceiveClient;
 use order_book::clients::bitstamp::bitstamp_client::BitstampReceiveClient;
 use tokio::net::{TcpListener, TcpStream, TcpSocket};
 use tokio::runtime::Builder;
@@ -52,7 +53,7 @@ async fn main() {
                 heapless::String::from("coinbase"), 
                 //heapless::String::from("gemini"),
                 heapless::String::from("kraken"),
-                heapless::String::from("bitstamp"),
+                heapless::String::from("binance"),
             ]
         );
         let multi_lock = Arc::new(Mutex::new(multi_book));
@@ -60,7 +61,7 @@ async fn main() {
         let cb_multi_lock = multi_lock.clone();
         //let gemini_multi_lock = multi_lock.clone();
         let kraken_multi_lock = multi_lock.clone();
-        //let bitstamp_multi_lock = multi_lock.clone();
+        let binance_multi_lock = multi_lock.clone();
     
         let coinbase_task = runtime.spawn(async move {
             loop {
@@ -88,20 +89,18 @@ async fn main() {
                 kraken_client.init().await;
             }
         });
-        /*let bitstamp_task = runtime.spawn(async move {
-            loop {
-                let lock = bitstamp_multi_lock.clone();
-                let pair = heapless::String::<8>::from(*pair);
-                let mut bitstamp_client = BitstampReceiveClient::new(lock, pair).await;
-                bitstamp_client.init().await;
-            }
-        });*/
 
         let _ = pair_task_vec.push(coinbase_task);
         //let _ = pair_task_vec.push(gemini_task);
         let _ = pair_task_vec.push(kraken_task);
-        //let _ = pair_task_vec.push(bitstamp_task);
+        //let _ = pair_task_vec.push(binance_task);
     }
+    let binance_task = runtime.spawn(async move {
+        //let lock = binance_multi_lock.clone();
+        let pair = heapless::String::<8>::from("BTC-USD");
+        let mut binance_client = BinanceReceiveClient::new(pair).await;
+        binance_client.init().await;
+    });
     let monitor_task = runtime.spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(60 * 10)).await;
@@ -110,27 +109,8 @@ async fn main() {
             }
         }
     });
-    let binance_task = runtime.spawn(async move {
-        let mut total = 0;
-        let mut count = 0;
-        let addr = "0.0.0.0:6969".parse().unwrap();
-        let socket = TcpSocket::new_v4().expect("Error creating socket");
-        socket.set_nodelay(true).unwrap();
-        socket.bind(addr).unwrap();
-        let (connection, _) = socket.listen(1024).expect("No connections to accept").accept().await.expect("Error accepting");
-        let mut stream = accept_async(connection).await.expect("Failed to accept connection");
-        while let Some(msg) = stream.next().await {
-            let e = i64::from_be_bytes(msg.unwrap().into_data().try_into().unwrap());
-            let now = Utc::now();
-            let dur = now.timestamp_millis() - e;
-            println!("Binance sent to handled time: {:?}", dur);
-            count = count + 1;
-            total = total + dur;
-            let avg: f64 = (total as f64) / (count as f64);
-            println!("Binance avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));  
-        }
-    });
     binance_task.await.unwrap();
+
     for pair_task in pair_task_vec {
         pair_task.await.unwrap();
     }
