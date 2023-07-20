@@ -18,7 +18,7 @@ async fn main() {
     let (mut book_client, _) = client_async("wss://ip-207-2-15-83.ec2.internal:6969", tcp).await.expect("Client failed to connect");
     println!("Connected!");
     let mut binance_client = WebSocketClient::new("wss://stream.binance.com/ws/btcusdt@aggTrade".to_string()).await;
-    let binance_sub: String = format!("{{\"method\": \"SUBSCRIBE\",\"params\": [\"btcusdt@aggTrade\", \"btcusdt@bookTicker\"],\"id\": 1}}").to_string();
+    let binance_sub: String = format!("{{\"method\": \"SUBSCRIBE\",\"params\": [\"btcusdt@aggTrade\", \"btcusdt@bookTicker\", \"ethusdt@aggTrade\", \"ethusdt@bookTicker\"],\"id\": 1}}").to_string();
     let mut count = 0;
     let mut total = 0;
     binance_client.send(Message::Text(binance_sub)).await;
@@ -27,9 +27,10 @@ async fn main() {
         //let event_time = value.get("E");
         //let trade_time = value.get("T");
         let trade = serde_json_core::from_str::<Trade>(&msg.unwrap().to_text().unwrap());
+        println!("{:?}", trade);
         let e = match trade {
             Ok((t, _)) => {
-                Some(t.sent)
+                t.sent
             },
             Err(_) => {
                 //println!("{:?}", trade);
