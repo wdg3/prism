@@ -15,8 +15,8 @@ pub struct BinanceAdapter {
 impl BinanceAdapter {
     pub fn new(books: heapless::Vec::<Arc<Mutex<MultiBook<3, 6>>>, 2>) -> BinanceAdapter {
         let mut pair_map = heapless::FnvIndexMap::<heapless::String::<8>, usize, 2>::new();
-        pair_map.insert(heapless::String::<8>::from("BTCUSDT"), 0).unwrap();
-        pair_map.insert(heapless::String::<8>::from("ETHUSDT"), 1).unwrap();
+        pair_map.insert(heapless::String::<8>::from("ETHUSDT"), 0).unwrap();
+        pair_map.insert(heapless::String::<8>::from("BTCUSDT"), 1).unwrap();
         return BinanceAdapter {
             books: books,
             book_idx: 2,
