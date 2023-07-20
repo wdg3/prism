@@ -39,17 +39,18 @@ async fn main() {
                 handle_trade(trade, &mut book_client).await;
                 let now = Utc::now();
                 let dur = now.timestamp_millis() - sent;
-                println!("Sent to handled time: {:?}", dur);
                 count = count + 1;
                 total = total + dur;
                 let avg: f64 = (total as f64) / (count as f64);
-                println!("Avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));  
+                if count % 1000 == 1 {
+                    println!("Sent to handled time: {:?}", dur);
+                    println!("Avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));  
+                }
             },
             None => {
                 match message.pair {
                     None => (),
                     Some(_) => {
-                        println!("{:?}", raw);
                         let (update, _) = serde_json_core::from_str::<BookUpdate>(&raw).unwrap();
                         handle_book_update(update, &mut book_client).await;
                     },

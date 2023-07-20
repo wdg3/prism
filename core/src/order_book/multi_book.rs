@@ -111,7 +111,7 @@ impl<const S: usize, const T: usize> MultiBook<S, T> {
             if spread.percentage >= self.max {
                 self.max = spread.percentage;
             }
-            if spread.percentage >= 0.001 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] || spread.seqs[1] != self.last_spreads[i].seqs[1])) {
+            if spread.percentage >= 0.002 && (self.last_spreads[i].seqs[0] == 0 || (spread.seqs[0] != self.last_spreads[i].seqs[0] || spread.seqs[1] != self.last_spreads[i].seqs[1])) {
                 self.last_spreads[i] = spread.clone();
                 self.arb_count += 1;
                 self.print();

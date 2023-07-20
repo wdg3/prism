@@ -42,11 +42,13 @@ impl BinanceReceiveClient {
                     self.handle_trade(message).await;
                     let now = Utc::now();
                     let dur = now.timestamp_millis() - t;
-                    println!("Binance sent to handled time: {:?}", dur);
                     count = count + 1;
                     total = total + dur;
                     let avg: f64 = (total as f64) / (count as f64);
-                    println!("Binance avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));
+                    if count % 1000 == 1 {
+                        println!("Binance sent to handled time: {:?}", dur);
+                        println!("Binance avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));
+                    }
                 },
                 None => self.handle_book_update(message).await
             }
