@@ -31,7 +31,6 @@ async fn main() {
             Ok((m, _)) => m,
             Err(_) => continue,
         };
-        println!("{:?}", message);
         match message.event_type {
             Some(_) => {
                 let (trade, _) = serde_json_core::from_str::<Trade>(&raw).unwrap();

@@ -75,7 +75,9 @@ impl BinanceAdapter {
         };
         let new = order_book::data_types::Match {side: side, size: trade.level.amount, price: trade.level.level};
         let mut guard = self.books[*self.pair_map.get(&pair).unwrap()].lock().await;
-        guard.books[self.book_idx].update_impulse(new);
-        guard.update_spread(self.book_idx);
+        if guard.books[self.book_idx].best_ask.is_some() && guard.books[self.book_idx].best_bid.is_some() {
+            guard.books[self.book_idx].update_impulse(new);
+            guard.update_spread(self.book_idx);
+        }
     }
 }
