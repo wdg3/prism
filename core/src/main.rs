@@ -6,7 +6,7 @@ use chrono::Utc;
 use futures_util::{future, TryStreamExt, StreamExt, SinkExt};
 
 use order_book::clients::bitstamp::bitstamp_client::BitstampReceiveClient;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::{TcpListener, TcpStream, TcpSocket};
 use tokio::runtime::Builder;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -113,9 +113,11 @@ async fn main() {
     let binance_task = runtime.spawn(async move {
         let mut total = 0;
         let mut count = 0;
-        let addr = "0.0.0.0:6969".to_string();
-        let listener = TcpListener::bind(&addr).await.unwrap();
-        let (connection, _) = listener.accept().await.expect("No connections to accept");
+        let addr = "0.0.0.0:6969".parse().unwrap();
+        let socket = TcpSocket::new_v4().expect("Error creating socket");
+        socket.set_nodelay(true).unwrap();
+        socket.bind(addr).unwrap();
+        let (connection, _) = socket.listen(1024).expect("No connections to accept").accept().await.expect("Error accepting");
         let mut stream = accept_async(connection).await.expect("Failed to accept connection");
         while let Some(msg) = stream.next().await {
             let e = i64::from_be_bytes(msg.unwrap().into_data().try_into().unwrap());
