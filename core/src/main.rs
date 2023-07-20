@@ -95,10 +95,11 @@ async fn main() {
         let _ = pair_task_vec.push(kraken_task);
         //let _ = pair_task_vec.push(binance_task);
     }
+    let mut lock_vec = heapless::Vec::<Arc<Mutex<MultiBook<NUM_EXCHANGES, NUM_EXCHANGE_PAIRS>>>, NUM_CURRENCY_PAIRS>::new();
+    lock_vec.clone_from(&multi_book_vec);
     let binance_task = runtime.spawn(async move {
         //let lock = binance_multi_lock.clone();
-        let pair = heapless::String::<8>::from("BTC-USD");
-        let mut binance_client = BinanceReceiveClient::new(pair).await;
+        let mut binance_client = BinanceReceiveClient::new(lock_vec).await;
         binance_client.init().await;
     });
     let monitor_task = runtime.spawn(async move {

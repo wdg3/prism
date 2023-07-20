@@ -18,6 +18,8 @@ pub struct Trade {
     pub price: heapless::String<16>,
     #[serde(rename = "q")]
     pub amount: heapless::String<16>,
+    #[serde(rename = "m")]
+    pub buy: bool,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -45,4 +47,5 @@ pub struct OutboundMessage {
     pub ask_level: Option<heapless::String<16>>,
     pub bid_amount: Option<heapless::String<16>>,
     pub ask_amount: Option<heapless::String<16>>,
+    pub buy: Option<bool>,
 }
