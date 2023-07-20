@@ -4,14 +4,17 @@ use client::WebSocketClient;
 use data_types::Trade;
 use chrono::Utc;
 use futures_util::SinkExt;
-use tokio::net::TcpStream;
+use tokio::net::TcpSocket;
 use std::time::Duration;
 use serde_json::Value;
 use tokio_tungstenite::{tungstenite::protocol::Message, client_async};
 
 #[tokio::main]
 async fn main() {
-    let tcp = TcpStream::connect("ip-207-2-15-83.ec2.internal:6969").await.expect("Failed to connect");
+    let addr = "207.2.15.83:6969".parse().unwrap();
+    let socket = TcpSocket::new_v4().expect("Failed to create socket");
+    socket.set_nodelay(true).expect("Failed to disable Nagle's algorithm");
+    let tcp = socket.connect(addr).await.expect("Failed to connect");
     let (mut book_client, _) = client_async("wss://ip-207-2-15-83.ec2.internal:6969", tcp).await.expect("Client failed to connect");
     println!("Connected!");
     let mut binance_client = WebSocketClient::new("wss://stream.binance.com/ws/btcusdt@aggTrade".to_string()).await;
@@ -29,7 +32,7 @@ async fn main() {
                 Some(t.sent)
             },
             Err(_) => {
-                println!("{:?}", trade);
+                //println!("{:?}", trade);
                 None
             }, 
         };
