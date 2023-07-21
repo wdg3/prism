@@ -46,7 +46,6 @@ impl BinanceReceiveClient {
                     total = total + dur;
                     let avg: f64 = (total as f64) / (count as f64);
                     if count % 1000 == 1 {
-                        println!("Binance sent to handled time: {:?}", dur);
                         println!("Binance avg. sent to handled time: {:?}", Duration::new(0, (avg * 1000000.0) as u32));
                     }
                 },

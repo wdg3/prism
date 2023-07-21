@@ -69,8 +69,9 @@ impl<'a> KrakenReceiveClient {
                                         count = count + 1;
                                         total = total + duration.as_nanos() as usize;
                                         let avg: f64 = (total as f64) / (count as f64);
-                                        //println!("Kraken: message handled in {:?}", duration);
-                                        //println!("Kraken: average message handle time for {:?} messages: {:?}", count, Duration::new(0, avg as u32));
+                                        if count % 1000 == 1 {
+                                            println!("Kraken avg. sent to handled time: {:?}", Duration::new(0, avg as u32));
+                                        }
                                     }
                                 },
                                 _ => (),
