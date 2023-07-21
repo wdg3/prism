@@ -58,7 +58,7 @@ impl<'a> KrakenAdapter {
         let initial_book = Snapshot {bids: Box::new(*bids), asks: Box::new(*asks)};
         let mut guard = self.multi_book.lock().await;
         guard.books[self.book_idx].init(initial_book);
-        //guard.update_spread(self.book_idx);
+        guard.update_spread(self.book_idx);
     }
 
     fn trade() {

@@ -26,7 +26,8 @@ impl BinanceAdapter {
 
     pub async fn handle_book_update(&mut self, message: Update, pair: &heapless::String<8>) {
         let mut changes = heapless::Vec::<order_book::data_types::Change, 512>::new();
-        let book = &mut self.books[*self.pair_map.get(&pair).unwrap()].lock().await.books[self.book_idx];
+        let multi_book = &mut self.books[*self.pair_map.get(&pair).unwrap()].lock().await;
+        let book = &mut multi_book.books[self.book_idx];
         let (curr_bid, curr_ask) = (book.best_bid, book.best_ask);
         if curr_bid.is_some() && message.best_bid.level.level != curr_bid.unwrap() {
             let _ = changes.push(order_book::data_types::Change {
@@ -66,6 +67,7 @@ impl BinanceAdapter {
         });
         let update = order_book::data_types::Update {product_id: "", time: "", changes: changes};
         book.update(update);
+        multi_book.update_spread(self.book_idx);
     }
 
     pub async fn handle_trade(&mut self, trade: Change, pair: &heapless::String<8>) {

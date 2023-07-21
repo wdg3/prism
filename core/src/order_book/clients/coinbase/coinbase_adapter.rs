@@ -60,7 +60,7 @@ impl<'a> CoinbaseAdapter {
         let update = order_book::data_types::Update {product_id: "", time: "", changes: changes};
         let mut guard = self.multi_book.lock().await;
         guard.books[self.book_idx].update(update);
-        //guard.update_spread(self.book_idx);
+        guard.update_spread(self.book_idx);
     }
 
     pub async fn match_(&mut self, match_: Match) {
