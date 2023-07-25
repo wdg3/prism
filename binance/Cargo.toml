@@ -13,3 +13,4 @@ serde_json = "*"
 serde-json-core = "0.5.0"
 heapless = { version = "*", features = ["serde"] }
 chrono = "0.4"
+embedded-websocket = "0.9.3"

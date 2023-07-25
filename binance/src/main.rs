@@ -74,8 +74,7 @@ async fn handle_trade(trade: Trade, client: &mut WebSocketStream<TcpStream>) {
         ask_amount: None,
         buy: Some(trade.buy),
     };
-    let _ = client.send(Message::Text(serde_json_core::to_string::<OutboundMessage, 256>(&out).unwrap().to_string())).await;
-
+    let _ = client.feed(Message::Text(serde_json_core::to_string::<OutboundMessage, 256>(&out).unwrap().to_string()));
 }
 
 async fn handle_book_update(update: BookUpdate, client: &mut WebSocketStream<TcpStream>) {
@@ -91,5 +90,5 @@ async fn handle_book_update(update: BookUpdate, client: &mut WebSocketStream<Tcp
         ask_amount: Some(update.ask_amount),
         buy: None,
     };
-    let _ = client.send(Message::Text(serde_json_core::to_string::<OutboundMessage, 256>(&out).unwrap().to_string())).await;
+    let _ = client.feed(Message::Text(serde_json_core::to_string::<OutboundMessage, 256>(&out).unwrap().to_string())).await;
 }
